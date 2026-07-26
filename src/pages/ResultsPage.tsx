@@ -22,48 +22,60 @@ const DEFAULT_FILTERS: FilterState = {
 
 function generateDynamicListings(origin: string, destination: string, travelDate: string): BusListingWithRoute[] {
   const operators = [
-    'VRL Travels', 'SRS Travels', 'Morning Star Travels', 'Orange Tours',
-    'IntrCity SmartBus', 'Kaveri Travels', 'APS RTC Super Luxury', 'TSRTC Garuda',
-    'Jabbar Travels', 'GreenLine Travels'
+    { name: 'APSRTC Super Luxury', model: 'bharatbenz', type: 'semi-sleeper', ac: 'non-ac' },
+    { name: 'VRL Travels Multi-Axle', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'IntrCity SmartBus', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'Morning Star Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'Orange Tours & Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'Zingbus Premium AC', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'SRS Travels', model: 'other', type: 'semi-sleeper', ac: 'ac' },
+    { name: 'TSRTC Garuda Plus', model: 'volvo', type: 'seater', ac: 'ac' },
+    { name: 'Kaveri Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
+    { name: 'GreenLine Travels', model: 'bharatbenz', type: 'semi-sleeper', ac: 'ac' },
+    { name: 'Nuego Green Electric', model: 'other', type: 'seater', ac: 'ac' },
+    { name: 'Jabbar Travels', model: 'volvo', type: 'sleeper', ac: 'ac' }
   ];
   
   const otas = ['redBus', 'MakeMyTrip', 'AbhiBus', 'TravelYaari', 'EaseMyTrip', 'PaytmBus'];
   
   const routeId = `${origin}-${destination}`;
-  const baseDistance = 350;
+  const baseDistance = 380;
   
   const mockListings: BusListingWithRoute[] = [];
 
-  operators.slice(0, 6).forEach((op, index) => {
+  operators.forEach((op, index) => {
     const ota = otas[index % otas.length];
-    const busType = index % 2 === 0 ? 'sleeper' : index % 3 === 0 ? 'semi-sleeper' : 'seater';
-    const acStatus = index % 4 === 0 ? 'non-ac' : 'ac';
-    const busModel = index % 2 === 0 ? 'volvo' : 'bharatbenz';
-    const price = 450 + (index * 120) + (acStatus === 'ac' ? 200 : 0) + (busType === 'sleeper' ? 250 : 0);
-    const depHour = 18 + index;
-    const depTime = `${depHour > 23 ? depHour - 24 : depHour}:30:00`;
-    const arrHour = (depHour + 7) % 24;
-    const arrTime = `${arrHour < 10 ? '0' : ''}${arrHour}:00:00`;
+    const busType = op.type;
+    const acStatus = op.ac;
+    const busModel = op.model;
+    const price = 420 + (index * 95) + (acStatus === 'ac' ? 180 : 0) + (busType === 'sleeper' ? 220 : 0);
+    const depHour = (6 + index * 1.5) % 24;
+    const depH = Math.floor(depHour);
+    const depM = (index % 2 === 0) ? '15' : '45';
+    const depTime = `${depH < 10 ? '0' : ''}${depH}:${depM}:00`;
+    
+    const arrHour = (depH + 7 + (index % 3)) % 24;
+    const arrTime = `${arrHour < 10 ? '0' : ''}${arrHour}:${depM}:00`;
 
     mockListings.push({
       id: `dyn-${index}-${routeId}`,
       route_id: routeId,
-      operator_name: op,
+      operator_name: op.name,
       bus_type: busType,
       ac_status: acStatus,
       bus_model: busModel,
-      seat_position: 'window',
-      berth_level: busType === 'sleeper' ? 'upper' : null,
+      seat_position: index % 2 === 0 ? 'window' : 'aisle',
+      berth_level: busType === 'sleeper' ? (index % 2 === 0 ? 'lower' : 'upper') : null,
       price: price,
       currency: 'INR',
       ota_source: ota,
-      rating: Number((4.0 + (index * 0.15) % 0.9).toFixed(1)),
+      rating: Number((4.1 + (index * 0.12) % 0.8).toFixed(1)),
       deep_link_url: `https://www.${ota.toLowerCase()}.com`,
       travel_date: travelDate,
       departure_time: depTime,
       arrival_time: arrTime,
-      duration_mins: 420 + index * 30,
-      available_seats: 12 + index * 3,
+      duration_mins: 420 + (index % 4) * 35,
+      available_seats: 8 + (index * 4) % 22,
       last_updated: new Date().toISOString(),
       created_at: new Date().toISOString(),
       routes: {
@@ -107,8 +119,8 @@ export default function ResultsPage() {
       setLoading(true);
       setError(null);
 
-      // Fast timeout promise so database latency never hangs the app
-      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200));
+      // Fast 1-second race timeout so database latency never hangs search results
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000));
 
       const dbPromise = (async () => {
         try {
@@ -142,7 +154,7 @@ export default function ResultsPage() {
       if (dbResults && dbResults.length > 0) {
         setListings(dbResults);
       } else {
-        // Instant dynamic listings across all 22 cities & 6 OTAs
+        // Instant dynamic listings across all 22 cities & 6 OTAs (12 buses per route)
         const dynamicResults = generateDynamicListings(origin, destination, date);
         setListings(dynamicResults);
       }
