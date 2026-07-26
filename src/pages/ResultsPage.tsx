@@ -101,56 +101,61 @@ export default function ResultsPage() {
       return;
     }
 
+    let isSubscribed = true;
+
     async function fetchListings() {
       setLoading(true);
       setError(null);
 
-      try {
-        const { data: routeData } = await supabase
-          .from('routes')
-          .select('id')
-          .eq('origin_city', origin)
-          .eq('destination_city', destination)
-          .maybeSingle();
+      // Fast timeout promise so database latency never hangs the app
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200));
 
-        if (routeData) {
-          const { data } = await supabase
-            .from('bus_listings')
-            .select('*, routes(*)')
-            .eq('route_id', routeData.id)
-            .eq('travel_date', date)
-            .order('price', { ascending: true });
+      const dbPromise = (async () => {
+        try {
+          const { data: routeData } = await supabase
+            .from('routes')
+            .select('id')
+            .eq('origin_city', origin)
+            .eq('destination_city', destination)
+            .maybeSingle();
 
-          if (data && data.length > 0) {
-            setListings(data as BusListingWithRoute[]);
-            setLoading(false);
-            return;
+          if (routeData) {
+            const { data } = await supabase
+              .from('bus_listings')
+              .select('*, routes(*)')
+              .eq('route_id', routeData.id)
+              .eq('travel_date', date)
+              .order('price', { ascending: true });
+
+            if (data && data.length > 0) return data as BusListingWithRoute[];
           }
+        } catch {
+          return null;
         }
-      } catch (err) {
-        console.log('Supabase fetch error, switching to dynamic generator:', err);
+        return null;
+      })();
+
+      const dbResults = await Promise.race([dbPromise, timeoutPromise]);
+
+      if (!isSubscribed) return;
+
+      if (dbResults && dbResults.length > 0) {
+        setListings(dbResults);
+      } else {
+        // Instant dynamic listings across all 22 cities & 6 OTAs
+        const dynamicResults = generateDynamicListings(origin, destination, date);
+        setListings(dynamicResults);
       }
 
-      // Fallback dynamic generator for all 22 cities
-      const dynamicResults = generateDynamicListings(origin, destination, date);
-      setListings(dynamicResults);
       setLoading(false);
-
-      // Best effort log
-      try {
-        await supabase.from('search_logs').insert({
-          user_id: user?.id ?? null,
-          origin_city: origin,
-          destination_city: destination,
-          travel_date: date,
-          session_id: getSessionId(),
-          results_count: dynamicResults.length,
-        });
-      } catch {}
     }
 
     fetchListings();
-  }, [origin, destination, date, user?.id]);
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [origin, destination, date]);
 
   const filtered = useMemo(() => {
     let result = [...listings];
