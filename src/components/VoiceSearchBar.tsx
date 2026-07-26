@@ -7,7 +7,7 @@ import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption } from '../context/Lan
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
     ? import.meta.env.VITE_BACKEND_URL
-    : 'http://localhost:8000';
+    : 'https://yatrasaathi.onrender.com';
 
 const CITY_ALIASES: Record<string, string> = {
   vizag: 'Visakhapatnam',
