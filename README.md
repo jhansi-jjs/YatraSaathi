@@ -205,7 +205,6 @@ Distributed under the MIT License. See `LICENSE` for more details.
 
 ---
 
-## 👥 Authors & Acknowledgments
+## Acknowledgments
 
-- **Developed by**: [Jhansi JJS](https://github.com/jhansi-jjs)
 - **Built with**: React, Vite, FastAPI, Google Gemini AI, faster-whisper, edge-tts, and Supabase.
