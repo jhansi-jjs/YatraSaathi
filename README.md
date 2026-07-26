@@ -29,9 +29,10 @@ With **YatraSaathi**, users can speak naturally in any of **12+ Indian languages
 
 ## ✨ Key Features
 
+- 🌐 **App-Wide Dynamic Multilingual Translations**: Full real-time translation across ALL pages (Home, Search Results, Bus Cards, Filter Panel, Header, Footer, and Payment Checkout) in 12+ Indian languages (*Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Urdu, English*).
+- 💺 **Interactive Seat Selection & Payment Checkout**: Select lower/upper deck sleeper or seater berths, input passenger details, select payment options (UPI, GPay, PhonePe, Cards, Net Banking), and receive instant confirmed tickets with PNR and QR code vouchers.
 - 🎙️ **Multilingual Continuous Voice Search**: Tap the mic and speak naturally in your native language (e.g., *"రేపు వైజాగ్ నుండి హైదరాబాద్ బస్సులు"* or *"buses from Bangalore to Chennai tomorrow"*).
 - 🛑 **Hands-Free Voice Stop Command**: Microphone stays on continuously without interrupting your speech until you tap Stop or say a stop keyword (*"stop"*, *"ఆపు"*, *"रोको"*, *"நிறுத்து"*, *"ನಿಲ್ಲಿಸಿ"*, etc.).
-- 🌐 **Instant App-Wide UI Translation**: Changing the language (via Header dropdown or voice command) translates the entire interface across all pages instantly.
 - 🏙️ **22 Major Cities & Stations**: Full coverage for top Indian transit hubs including Visakhapatnam, Hyderabad, Vijayawada, Chennai, Bengaluru, Tirupati, Guntur, Rajahmundry, Kakinada, Nellore, Kurnool, Anantapur, Warangal, Karimnagar, Mumbai, Pune, Delhi, Kolkata, Kochi, Coimbatore, Madurai, and Mysuru.
 - ⚡ **Zero-Latency Instant Speech Recognition**: Utilizes Web Speech API for real-time live transcription with high-speed fallback.
 - 🚌 **12+ Bus Options Per Route Across 6 OTAs**: Compares bus ticket deals from 12 major operators (*APSRTC, TSRTC, VRL, Morning Star, Orange Tours, IntrCity SmartBus, Zingbus, Kaveri, SRS, GreenLine, Nuego Electric, Jabbar*) across redBus, MakeMyTrip, AbhiBus, TravelYaari, EaseMyTrip, and PaytmBus.

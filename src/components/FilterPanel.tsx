@@ -81,7 +81,7 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
 
       {/* Bus Model */}
       <div className="mb-5">
-        <p className="mb-2 text-xs font-semibold text-slate-500">Bus Model</p>
+        <p className="mb-2 text-xs font-semibold text-slate-500">{t('busModel')}</p>
         <div className="flex flex-col gap-2">
           {BUS_MODELS.map((model) => (
             <label key={model} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
@@ -100,7 +100,7 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
       {/* Max Price */}
       <div className="mb-5">
         <p className="mb-2 text-xs font-semibold text-slate-500">
-          Max Price: ₹{filters.maxPrice?.toLocaleString('en-IN') || maxAvailablePrice.toLocaleString('en-IN')}
+          {t('maxPriceLabel')}: ₹{filters.maxPrice?.toLocaleString('en-IN') || maxAvailablePrice.toLocaleString('en-IN')}
         </p>
         <input
           type="range"
@@ -116,7 +116,7 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
       {/* Min Rating */}
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-500">
-          Min Rating: {filters.minRating > 0 ? `${filters.minRating}★` : 'Any'}
+          {t('minRatingLabel')}: {filters.minRating > 0 ? `${filters.minRating}★` : 'Any'}
         </p>
         <input
           type="range"
