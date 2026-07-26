@@ -34,6 +34,7 @@ With **YatraSaathi**, users can speak naturally in any of **12+ Indian languages
 - 🌐 **Instant App-Wide UI Translation**: Changing the language (via Header dropdown or voice command) translates the entire interface across all pages instantly.
 - 🏙️ **22 Major Cities & Stations**: Full coverage for top Indian transit hubs including Visakhapatnam, Hyderabad, Vijayawada, Chennai, Bengaluru, Tirupati, Guntur, Rajahmundry, Kakinada, Nellore, Kurnool, Anantapur, Warangal, Karimnagar, Mumbai, Pune, Delhi, Kolkata, Kochi, Coimbatore, Madurai, and Mysuru.
 - ⚡ **Zero-Latency Instant Speech Recognition**: Utilizes Web Speech API for real-time live transcription with high-speed fallback.
+- 🚌 **12+ Bus Options Per Route Across 6 OTAs**: Compares bus ticket deals from 12 major operators (*APSRTC, TSRTC, VRL, Morning Star, Orange Tours, IntrCity SmartBus, Zingbus, Kaveri, SRS, GreenLine, Nuego Electric, Jabbar*) across redBus, MakeMyTrip, AbhiBus, TravelYaari, EaseMyTrip, and PaytmBus.
 - 🤖 **Dual AI & Rule-Based Intent Extraction**: Integrates Google Gemini AI (`gemini-1.5-flash`) with a fast local regex fallback engine for zero-lag route resolution.
 - 🔊 **Text-To-Speech (TTS) Guidance**: Spoken voice confirmations and step-by-step guidance in native regional languages powered by Edge-TTS / Web Speech API.
 - 📊 **Comprehensive Filter & Sort**: Filter by Sleeper, Semi-Sleeper, Seater, AC/Non-AC, Volvo/BharatBenz, price range, and star rating.
