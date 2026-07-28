@@ -17,19 +17,30 @@ function formatRedBusDate(dateStr: string): string {
   return `${day}-${month}-${year}`;
 }
 
-export function buildOtaDeepLink(listing: BusListingWithRoute | any): string {
+export function buildOtaDeepLink(
+  listing: BusListingWithRoute | any,
+  overrideOrigin?: string,
+  overrideDestination?: string,
+  overrideDate?: string
+): string {
   const rawOrigin =
+    overrideOrigin ||
     listing.routes?.origin_city ||
     listing.origin_city ||
     listing.origin ||
     'Visakhapatnam';
+
   const rawDestination =
+    overrideDestination ||
     listing.routes?.destination_city ||
     listing.destination_city ||
     listing.destination ||
     'Hyderabad';
+
   const travelDate =
-    listing.travel_date || new Date().toISOString().split('T')[0];
+    overrideDate ||
+    listing.travel_date ||
+    new Date().toISOString().split('T')[0];
 
   const originSlug = slugify(rawOrigin);
   const destSlug = slugify(rawDestination);
@@ -41,11 +52,11 @@ export function buildOtaDeepLink(listing: BusListingWithRoute | any): string {
     case 'MakeMyTrip':
       return `https://www.makemytrip.com/bus/search/${encodeURIComponent(rawOrigin)}/${encodeURIComponent(rawDestination)}/${travelDate}`;
     case 'AbhiBus':
-      return `https://www.abhibus.com/bus-booking/${originSlug}-to-${destSlug}?date=${travelDate}`;
+      return `https://www.abhibus.com/bus-ticket-booking/${originSlug}-to-${destSlug}?journeyDate=${travelDate}`;
     case 'TravelYaari':
-      return `https://www.travelyaari.com/bus-search?from=${encodeURIComponent(rawOrigin)}&to=${encodeURIComponent(rawDestination)}&date=${travelDate}`;
+      return `https://www.travelyaari.com/bus-search?from=${originSlug}&to=${destSlug}&date=${travelDate}`;
     case 'EaseMyTrip':
-      return `https://www.easemytrip.com/bus-booking/${originSlug}-to-${destSlug}?date=${travelDate}`;
+      return `https://www.easemytrip.com/bus/${originSlug}-to-${destSlug}.html`;
     case 'PaytmBus':
       return `https://paytm.com/bus-tickets/${originSlug}-to-${destSlug}?date=${travelDate}`;
     default:

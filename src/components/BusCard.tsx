@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Star, Clock, Users, Snowflake, Fan, ExternalLink, Ticket } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import { getSessionId } from '../lib/session';
@@ -23,12 +24,17 @@ const OTA_COLORS: Record<string, string> = {
 };
 
 export default function BusCard({ listing, index }: BusCardProps) {
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { t, getCityName } = useLanguage();
   const [showBookingModal, setShowBookingModal] = useState(false);
 
+  const searchOrigin = searchParams.get('origin') || undefined;
+  const searchDestination = searchParams.get('destination') || undefined;
+  const searchDate = searchParams.get('date') || undefined;
+
   const handleDirectOtaRedirect = async () => {
-    const deepLink = buildOtaDeepLink(listing);
+    const deepLink = buildOtaDeepLink(listing, searchOrigin, searchDestination, searchDate);
     try {
       await supabase.from('click_logs').insert({
         user_id: user?.id ?? null,
@@ -59,8 +65,8 @@ export default function BusCard({ listing, index }: BusCardProps) {
   };
 
   const otaColor = OTA_COLORS[listing.ota_source] || 'bg-slate-100 text-slate-600';
-  const originCity = listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
-  const destCity = listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
+  const originCity = searchOrigin || listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
+  const destCity = searchDestination || listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
 
   return (
     <>
