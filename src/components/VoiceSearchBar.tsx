@@ -80,7 +80,7 @@ const STOP_KEYWORDS = [
   'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
   'रोको', 'रुकिए', 'बस', 'बंद करो', 'स्टॉप',
   'நிறுத்து', 'நிறுத்துங்கள்', 'ஸ்டாப்',
-  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟਾಪ್',
+  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟಾಪ್',
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
   'थांबा', 'स्टॉप',
   'રોકો', 'સ્ટોપ',
@@ -106,18 +106,18 @@ const CLARIFICATIONS: Record<string, string> = {
 };
 
 const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
-  te: (o, d) => `మీకు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను...`,
-  hi: (o, d) => `हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं...`,
-  ta: (o, d) => `நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்...`,
-  kn: (o, d) => `ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ...`,
-  ml: (o, d) => `ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു...`,
-  mr: (o, d) => `आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत...`,
-  gu: (o, d) => `અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ...`,
-  bn: (o, d) => `আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি...`,
-  ur: (o, d) => `ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں...`,
-  pa: (o, d) => `ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ...`,
-  or: (o, d) => `ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ...`,
-  en: (o, d) => `Showing you buses from ${o} to ${d}...`,
+  te: (o, d) => `మీకు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను`,
+  hi: (o, d) => `हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं`,
+  ta: (o, d) => `நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்`,
+  kn: (o, d) => `ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ`,
+  ml: (o, d) => `ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു`,
+  mr: (o, d) => `आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत`,
+  gu: (o, d) => `અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ`,
+  bn: (o, d) => `আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি`,
+  ur: (o, d) => `ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں`,
+  pa: (o, d) => `ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ`,
+  or: (o, d) => `ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ`,
+  en: (o, d) => `Showing you buses from ${o} to ${d}`,
 };
 
 function speakWithBrowser(text: string, languageCode: string) {
@@ -150,6 +150,18 @@ function speakWithBrowser(text: string, languageCode: string) {
 function clientSideParseIntent(text: string, defaultLang: string) {
   const lower = text.toLowerCase();
   let lang = defaultLang;
+
+  // Auto-detect spoken language from script or keywords
+  if (/[\u0C00-\u0C7F]/.test(text)) lang = 'te'; // Telugu script
+  else if (/[\u0900-\u097F]/.test(text)) lang = 'hi'; // Hindi/Marathi script
+  else if (/[\u0B80-\u0BFF]/.test(text)) lang = 'ta'; // Tamil script
+  else if (/[\u0C80-\u0CFF]/.test(text)) lang = 'kn'; // Kannada script
+  else if (/[\u0D00-\u0D7F]/.test(text)) lang = 'ml'; // Malayalam script
+  else if (/[\u0A80-\u0AFF]/.test(text)) lang = 'gu'; // Gujarati script
+  else if (/[\u0980-\u09FF]/.test(text)) lang = 'bn'; // Bengali script
+  else if (/[\u0600-\u06FF]/.test(text)) lang = 'ur'; // Urdu script
+  else if (/[\u0A00-\u0A7F]/.test(text)) lang = 'pa'; // Punjabi script
+  else if (/[\u0B00-\u0B7F]/.test(text)) lang = 'or'; // Odia script
 
   for (const [kw, code] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
     if (lower.includes(kw)) {
@@ -220,6 +232,7 @@ export default function VoiceSearchBar() {
   const { currentLanguage, setLanguage, t } = useLanguage();
 
   const [languages, setLanguages] = useState<LanguageOption[]>(SUPPORTED_LANGUAGES);
+  const [selectedVoiceLang, setSelectedVoiceLang] = useState<string>('te');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -261,21 +274,21 @@ export default function VoiceSearchBar() {
         recog.continuous = true;
         recog.interimResults = true;
         recog.lang =
-          currentLanguage === 'te'
+          selectedVoiceLang === 'te'
             ? 'te-IN'
-            : currentLanguage === 'hi'
+            : selectedVoiceLang === 'hi'
             ? 'hi-IN'
-            : currentLanguage === 'ta'
+            : selectedVoiceLang === 'ta'
             ? 'ta-IN'
-            : currentLanguage === 'kn'
+            : selectedVoiceLang === 'kn'
             ? 'kn-IN'
-            : currentLanguage === 'ml'
+            : selectedVoiceLang === 'ml'
             ? 'ml-IN'
-            : currentLanguage === 'mr'
+            : selectedVoiceLang === 'mr'
             ? 'mr-IN'
-            : currentLanguage === 'gu'
+            : selectedVoiceLang === 'gu'
             ? 'gu-IN'
-            : currentLanguage === 'bn'
+            : selectedVoiceLang === 'bn'
             ? 'bn-IN'
             : 'en-IN';
 
@@ -288,13 +301,7 @@ export default function VoiceSearchBar() {
           fullTranscriptRef.current = currentText;
           setTranscript(currentText);
 
-          // Check if user requested a language switch via voice in ANY language
           const lowerText = currentText.toLowerCase();
-          for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
-              setLanguage(langCode);
-            }
-          }
 
           // Check for multilingual voice stop commands
           for (const stopWord of STOP_KEYWORDS) {
@@ -379,18 +386,13 @@ export default function VoiceSearchBar() {
 
   function processTextDirectly(text: string) {
     setIsProcessing(true);
-    const parsed = clientSideParseIntent(text, currentLanguage);
+    const parsed = clientSideParseIntent(text, selectedVoiceLang);
 
     setTranscript(parsed.transcript);
     setSpokenText(parsed.spoken_text);
     setNeedsClarification(parsed.needs_clarification);
 
-    // Switch full app language to spoken language if detected
-    if (parsed.intent.language !== currentLanguage) {
-      setLanguage(parsed.intent.language);
-    }
-
-    // Speak in the exact target regional language
+    // Speak back in the exact target regional language (without forcing full UI script change)
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
@@ -411,7 +413,7 @@ export default function VoiceSearchBar() {
 
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
-    formData.append('selected_language', currentLanguage);
+    formData.append('selected_language', selectedVoiceLang);
     formData.append('valid_cities', CITIES.join(','));
 
     try {
@@ -427,11 +429,7 @@ export default function VoiceSearchBar() {
       setSpokenText(data.spoken_text);
       setNeedsClarification(data.needs_clarification);
 
-      if (data.intent?.language && data.intent.language !== currentLanguage) {
-        setLanguage(data.intent.language);
-      }
-
-      speakWithBrowser(data.spoken_text, data.intent?.language || currentLanguage);
+      speakWithBrowser(data.spoken_text, data.intent?.language || selectedVoiceLang);
 
       if (data.ready_to_search && data.intent.origin && data.intent.destination) {
         const params = new URLSearchParams({
@@ -454,15 +452,15 @@ export default function VoiceSearchBar() {
       <div className="flex w-full flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-amber-400" />
-          <h3 className="text-base font-bold text-white">{t('voiceTitle')}</h3>
+          <h3 className="text-base font-bold text-white">Voice Bus Search</h3>
         </div>
 
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4 text-blue-400" />
-          <span className="text-xs text-slate-300">{t('voiceLanguageLabel')}:</span>
+          <span className="text-xs text-slate-300">Voice Language:</span>
           <select
-            value={currentLanguage}
-            onChange={(e) => setLanguage(e.target.value)}
+            value={selectedVoiceLang}
+            onChange={(e) => setSelectedVoiceLang(e.target.value)}
             className="rounded-lg border border-white/20 bg-slate-800 px-3 py-1 text-xs font-semibold text-white outline-none cursor-pointer hover:border-blue-400 transition-colors"
           >
             {languages.map((lang) => (
@@ -474,7 +472,9 @@ export default function VoiceSearchBar() {
         </div>
       </div>
 
-      <p className="max-w-xl text-center text-xs sm:text-sm text-slate-300">{t('voiceHint')}</p>
+      <p className="max-w-xl text-center text-xs sm:text-sm text-slate-300">
+        Tap the mic & speak your route in your preferred language (e.g., "రేపు వైజాగ్ నుండి హైదరాబాద్ బస్సులు" or "buses from Hyderabad to Vijayawada tomorrow")
+      </p>
 
       <button
         onClick={isRecording ? stopVoiceSearch : startVoiceSearch}
@@ -497,10 +497,10 @@ export default function VoiceSearchBar() {
 
       <p className="text-sm font-semibold text-blue-300">
         {isProcessing
-          ? t('processing')
+          ? 'Processing your voice request...'
           : isRecording
           ? '🔴 Recording continuously... Tap button or say "Stop" / "ఆపు" / "रोको" to finish'
-          : t('speakNow')}
+          : 'Tap to Speak'}
       </p>
 
       {transcript && (
