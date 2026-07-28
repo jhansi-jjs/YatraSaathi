@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Star, Clock, Users, Snowflake, Fan, ExternalLink } from 'lucide-react';
+import { Star, Clock, Users, Snowflake, Fan, ExternalLink, Ticket } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import { getSessionId } from '../lib/session';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +27,8 @@ export default function BusCard({ listing, index }: BusCardProps) {
   const { t } = useLanguage();
   const [showBookingModal, setShowBookingModal] = useState(false);
 
-  const handleOpenBooking = async () => {
+  const handleDirectOtaRedirect = async () => {
+    const deepLink = buildOtaDeepLink(listing);
     try {
       await supabase.from('click_logs').insert({
         user_id: user?.id ?? null,
@@ -35,9 +36,19 @@ export default function BusCard({ listing, index }: BusCardProps) {
         ota_source: listing.ota_source,
         session_id: getSessionId(),
       });
-    } catch {
-      // best-effort
-    }
+    } catch {}
+    window.open(deepLink, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenBookingModal = async () => {
+    try {
+      await supabase.from('click_logs').insert({
+        user_id: user?.id ?? null,
+        listing_id: listing.id,
+        ota_source: listing.ota_source,
+        session_id: getSessionId(),
+      });
+    } catch {}
     setShowBookingModal(true);
   };
 
@@ -98,9 +109,9 @@ export default function BusCard({ listing, index }: BusCardProps) {
             </div>
           </div>
 
-          {/* Price + CTA */}
-          <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-4 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
-            <div>
+          {/* Price + CTA Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100 pt-4 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
+            <div className="text-left sm:text-right">
               <div className="flex items-center gap-1 text-xs text-slate-400">
                 <Users className="h-3 w-3" /> {listing.available_seats} {t('seatsLeft')}
               </div>
@@ -108,9 +119,24 @@ export default function BusCard({ listing, index }: BusCardProps) {
                 ₹{listing.price.toLocaleString('en-IN')}
               </p>
             </div>
-            <button onClick={handleOpenBooking} className="btn-primary flex items-center gap-2">
-              {t('bookOn')} {OTA_NAMES[listing.ota_source] || listing.ota_source} <ExternalLink className="h-4 w-4" />
-            </button>
+
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              {/* 1. Direct OTA Deep Link button */}
+              <button
+                onClick={handleDirectOtaRedirect}
+                className="btn-primary flex items-center justify-center gap-2 bg-[#0066ff] hover:bg-blue-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-sm"
+              >
+                {t('bookOn')} {OTA_NAMES[listing.ota_source] || listing.ota_source} <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+
+              {/* 2. Interactive Seat Selection & Payment Checkout */}
+              <button
+                onClick={handleOpenBookingModal}
+                className="btn-secondary flex items-center justify-center gap-1.5 text-xs py-1.5 px-3 font-semibold text-slate-700 hover:text-blue-600 border border-slate-200 rounded-xl"
+              >
+                <Ticket className="h-3.5 w-3.5 text-emerald-500" /> {t('bookTicket')}
+              </button>
+            </div>
           </div>
         </div>
       </div>

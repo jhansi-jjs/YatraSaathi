@@ -29,7 +29,9 @@ With **YatraSaathi**, users can speak naturally in any of **12+ Indian languages
 
 ## ✨ Key Features
 
-- 🌐 **App-Wide Dynamic Multilingual Translations**: Full real-time translation across ALL pages (Home, Search Results, Bus Cards, Filter Panel, Header, Footer, and Payment Checkout) in 12+ Indian languages (*Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Urdu, English*).
+- 🔗 **Direct OTA Deep-Link Redirects**: Clicking any booking button directly redirects users to the exact pre-filled route, bus, and date on **redBus**, **MakeMyTrip**, **AbhiBus**, **TravelYaari**, **EaseMyTrip**, or **PaytmBus**—no re-typing or re-filtering required!
+- 🗣️ **Regional Language Voice Confirmations**: Spoken AI assistant responds dynamically in regional languages for all station pairs (e.g. Telugu: *"మీకు విశాఖపట్నం నుండి హైదరాబాద్ వెళ్లే బస్సులను చూపిస్తున్నాను"*, Hindi: *"हम आपको विशाखापट्टनम से हैदराबाद जाने वाली बसें दिखा रहे हैं"*).
+- 🌐 **100% Complete 12-Language UI Translation**: Every single letter and label across ALL pages (Home, Search Results, Filter Panel, Bus Cards, Header, Footer, Seat Selection, Payment Checkout) turns instantly into the selected language for all 12 supported Indian languages (*Telugu, Hindi, Tamil, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Urdu, English*).
 - 💺 **Interactive Seat Selection & Payment Checkout**: Select lower/upper deck sleeper or seater berths, input passenger details, select payment options (UPI, GPay, PhonePe, Cards, Net Banking), and receive instant confirmed tickets with PNR and QR code vouchers.
 - 🎙️ **Multilingual Continuous Voice Search**: Tap the mic and speak naturally in your native language (e.g., *"రేపు వైజాగ్ నుండి హైదరాబాద్ బస్సులు"* or *"buses from Bangalore to Chennai tomorrow"*).
 - 🛑 **Hands-Free Voice Stop Command**: Microphone stays on continuously without interrupting your speech until you tap Stop or say a stop keyword (*"stop"*, *"ఆపు"*, *"रोको"*, *"நிறுத்து"*, *"ನಿಲ್ಲಿಸಿ"*, etc.).

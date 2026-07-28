@@ -70,6 +70,8 @@ const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
   اردو: 'ur',
   punjabi: 'pa',
   ਪੰਜਾਬੀ: 'pa',
+  odia: 'or',
+  ଓଡ଼ିଆ: 'or',
   english: 'en',
 };
 
@@ -78,12 +80,14 @@ const STOP_KEYWORDS = [
   'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
   'रोको', 'रुकिए', 'बस', 'बंद करो', 'स्टॉप',
   'நிறுத்து', 'நிறுத்துங்கள்', 'ஸ்டாப்',
-  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟಾಪ್',
+  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟਾಪ್',
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
   'थांबा', 'स्टॉप',
   'રોકો', 'સ્ટોપ',
   'থামুন', 'স্টপ',
-  'روکیں', 'سٹاپ'
+  'روکیں', 'سٹاپ',
+  'ਰੋਕੋ', 'ਸਟਾਪ',
+  'ରଖନ୍ତୁ', 'ଷ୍ଟପ୍'
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
@@ -96,20 +100,24 @@ const CLARIFICATIONS: Record<string, string> = {
   gu: 'કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.',
   bn: 'অনুগ্রহ করে যাত্রার শহর এবং গন্তব্য জানান।',
   ur: 'براہ کرم روانگی کا شہر اور منزل بتائیں۔',
+  pa: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਅਤੇ ਪਹੁੰਚਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
+  or: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ଏବଂ ଗନ୍ତବ୍ୟ ସହର କୁହନ୍ତୁ।',
   en: 'Please specify your origin and destination cities (e.g., Hyderabad to Vijayawada)',
 };
 
 const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
-  te: (o, d) => `${o} నుండి ${d} కు ప్రయాణించే బస్సులను వెతుకుతున్నాము...`,
-  hi: (o, d) => `${o} से ${d} के लिए बसें खोजी जा रही हैं...`,
-  ta: (o, d) => `${o} முதல் ${d} வரையிலான பேருந்துகளைத் தேடுகிறோம்...`,
-  kn: (o, d) => `${o} ದಿಂದ ${d} ಗೆ ಬಸ್‌ಗಳನ್ನು ಹುಡುಕುತ್ತಿದ್ದೇವೆ...`,
-  ml: (o, d) => `${o} ൽ നിന്ന് ${d} ലേക്കുള്ള ബസുകൾ കാണിക്കുന്നു...`,
-  mr: (o, d) => `${o} ते ${d} साठी बस शोधत आहोत...`,
-  gu: (o, d) => `${o} થી ${d} માટેની બસો શોધી રહ્યા છીએ...`,
-  bn: (o, d) => `${o} থেকে ${d} এর জন্য বাস খোঁজা হচ্ছে...`,
-  ur: (o, d) => `${o} سے ${d} کے لیے بسیں تلاش کی جا رہی ہیں۔`,
-  en: (o, d) => `Searching buses from ${o} to ${d}...`,
+  te: (o, d) => `మీకు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను...`,
+  hi: (o, d) => `हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं...`,
+  ta: (o, d) => `நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்...`,
+  kn: (o, d) => `ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ...`,
+  ml: (o, d) => `ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു...`,
+  mr: (o, d) => `आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत...`,
+  gu: (o, d) => `અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ...`,
+  bn: (o, d) => `আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি...`,
+  ur: (o, d) => `ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں...`,
+  pa: (o, d) => `ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ...`,
+  or: (o, d) => `ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ...`,
+  en: (o, d) => `Showing you buses from ${o} to ${d}...`,
 };
 
 function speakWithBrowser(text: string, languageCode: string) {
@@ -127,6 +135,14 @@ function speakWithBrowser(text: string, languageCode: string) {
       ? 'ta-IN'
       : languageCode === 'kn'
       ? 'kn-IN'
+      : languageCode === 'ml'
+      ? 'ml-IN'
+      : languageCode === 'mr'
+      ? 'mr-IN'
+      : languageCode === 'gu'
+      ? 'gu-IN'
+      : languageCode === 'bn'
+      ? 'bn-IN'
       : languageCode;
   window.speechSynthesis.speak(utterance);
 }
@@ -168,7 +184,12 @@ function clientSideParseIntent(text: string, defaultLang: string) {
     lower.includes('రేపు') ||
     lower.includes('कल') ||
     lower.includes('நாளை') ||
-    lower.includes('ನಾಳೆ')
+    lower.includes('ನಾಳೆ') ||
+    lower.includes('നാളെ') ||
+    lower.includes('उद्या') ||
+    lower.includes('આવતીકાલે') ||
+    lower.includes('আগামীকাল') ||
+    lower.includes('کل')
   ) {
     date = tomorrow;
   }
@@ -237,7 +258,7 @@ export default function VoiceSearchBar() {
     if (SpeechRecognition) {
       try {
         const recog = new SpeechRecognition();
-        recog.continuous = true; // CONTINUOUS RECORDING -- Does not stop on silence!
+        recog.continuous = true;
         recog.interimResults = true;
         recog.lang =
           currentLanguage === 'te'
@@ -248,6 +269,14 @@ export default function VoiceSearchBar() {
             ? 'ta-IN'
             : currentLanguage === 'kn'
             ? 'kn-IN'
+            : currentLanguage === 'ml'
+            ? 'ml-IN'
+            : currentLanguage === 'mr'
+            ? 'mr-IN'
+            : currentLanguage === 'gu'
+            ? 'gu-IN'
+            : currentLanguage === 'bn'
+            ? 'bn-IN'
             : 'en-IN';
 
         recog.onresult = (event: any) => {
@@ -259,11 +288,17 @@ export default function VoiceSearchBar() {
           fullTranscriptRef.current = currentText;
           setTranscript(currentText);
 
-          // Check for multilingual voice stop commands (e.g. "stop", "ఆపు", "रोको")
+          // Check if user requested a language switch via voice in ANY language
           const lowerText = currentText.toLowerCase();
+          for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
+            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
+              setLanguage(langCode);
+            }
+          }
+
+          // Check for multilingual voice stop commands
           for (const stopWord of STOP_KEYWORDS) {
             if (lowerText.includes(stopWord)) {
-              // Clean stop word from text
               const cleanedText = currentText.replace(new RegExp(stopWord, 'gi'), '').trim();
               fullTranscriptRef.current = cleanedText;
               setTranscript(cleanedText);
@@ -278,13 +313,10 @@ export default function VoiceSearchBar() {
         };
 
         recog.onend = () => {
-          // Auto-restart if user has NOT clicked stop or spoken a stop command
           if (isRecordingRef.current) {
             try {
               recog.start();
-            } catch {
-              // Ignore if already starting
-            }
+            } catch {}
           }
         };
 
@@ -337,7 +369,6 @@ export default function VoiceSearchBar() {
       } catch {}
     }
 
-    // Process accumulated transcript immediately when stopped
     const finalText = fullTranscriptRef.current || transcript;
     if (finalText) {
       processTextDirectly(finalText);
@@ -354,10 +385,12 @@ export default function VoiceSearchBar() {
     setSpokenText(parsed.spoken_text);
     setNeedsClarification(parsed.needs_clarification);
 
+    // Switch full app language to spoken language if detected
     if (parsed.intent.language !== currentLanguage) {
       setLanguage(parsed.intent.language);
     }
 
+    // Speak in the exact target regional language
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
@@ -366,7 +399,7 @@ export default function VoiceSearchBar() {
         destination: parsed.intent.destination,
         date: parsed.intent.date,
       });
-      setTimeout(() => navigate(`/search?${params.toString()}`), 1400);
+      setTimeout(() => navigate(`/search?${params.toString()}`), 1500);
     }
 
     setIsProcessing(false);
@@ -406,11 +439,11 @@ export default function VoiceSearchBar() {
           destination: data.intent.destination,
           date: data.intent.date || new Date().toISOString().split('T')[0],
         });
-        setTimeout(() => navigate(`/search?${params.toString()}`), 1400);
+        setTimeout(() => navigate(`/search?${params.toString()}`), 1500);
       }
     } catch (err) {
       console.log('Backend unreachable, using instant local resolution');
-      processTextDirectly(transcript || 'buses from Visakhapatnam to Vijayawada');
+      processTextDirectly(transcript || 'buses from Visakhapatnam to Hyderabad');
     } finally {
       setIsProcessing(false);
     }
