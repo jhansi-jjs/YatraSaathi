@@ -22,6 +22,119 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: 'or', name: 'Odia', native_name: 'ଓଡ଼ିଆ', voice_available: true },
 ];
 
+export const CITY_TRANSLATIONS: Record<string, Record<string, string>> = {
+  Visakhapatnam: {
+    te: 'విశాఖపట్నం', hi: 'विशाखापट्टनम', ta: 'விசாகப்பட்டினம்', kn: 'ವಿಶಾಖಪಟ್ಟಣ',
+    ml: 'വിശാഖപട്ടണം', mr: 'विशाखापट्टणम', gu: 'વિશાખાપટ્ટનમ', bn: 'বিশাখাপত্তনম',
+    ur: 'وشاکھا پٹنم', pa: 'ਵਿਸ਼ਾਖਾਪਟਨਮ', or: 'ବିଶାଖାପାଟଣା', en: 'Visakhapatnam'
+  },
+  Hyderabad: {
+    te: 'హైదరాబాద్', hi: 'हैदराबाद', ta: 'ஹைதராபாத்', kn: 'ಹೈದರಾಬಾದ್',
+    ml: 'ഹൈദരാബാദ്', mr: 'हैदराबाद', gu: 'હૈદરાબાદ', bn: 'হায়দ্রাবাদ',
+    ur: 'حیدرآباد', pa: 'ਹੈਦਰਾਬਾਦ', or: 'ହାଇଦ୍ରାବାଦ', en: 'Hyderabad'
+  },
+  Vijayawada: {
+    te: 'విజయవాడ', hi: 'विजयवाड़ा', ta: 'விஜயவாடா', kn: 'ವಿಜಯವಾಡ',
+    ml: 'വിജയവാഡ', mr: 'विजयवाडा', gu: 'વિજયવાડા', bn: 'বিজয়ওয়াড়া',
+    ur: 'وجئےواڑہ', pa: 'ਵਿਜੇਵਾੜਾ', or: 'ବିଜୟୱାଡ଼ା', en: 'Vijayawada'
+  },
+  Chennai: {
+    te: 'చెన్నై', hi: 'चेन्नई', ta: 'சென்னை', kn: 'ಚೆನ್ನೈ',
+    ml: 'ചെന്നൈ', mr: 'चेन्नई', gu: 'ચેન્નઈ', bn: 'চেন্নাই',
+    ur: 'چنئی', pa: 'ਚੇਨਈ', or: 'ଚେନ୍ନାଇ', en: 'Chennai'
+  },
+  Bengaluru: {
+    te: 'బెంగళూరు', hi: 'बेंगलुरु', ta: 'பெங்களூரு', kn: 'ಬೆಂಗಳೂರು',
+    ml: 'ബംഗളൂരു', mr: 'बेंगळुरू', gu: 'બેંગલુરુ', bn: 'বেঙ্গালুরু',
+    ur: 'بنگلورو', pa: 'ਬੈਂਗਲੁਰੂ', or: 'ବେଙ୍ଗାଲୁରୁ', en: 'Bengaluru'
+  },
+  Tirupati: {
+    te: 'తిరుపతి', hi: 'तिरुपति', ta: 'திருப்பதி', kn: 'ತಿರುಪತಿ',
+    ml: 'തിരുപ്പതി', mr: 'तिरुपती', gu: 'તિરુપતિ', bn: 'তিরুপতি',
+    ur: 'تیروپتی', pa: 'ਤਿਰੁਪਤੀ', or: 'ତିରୁପତି', en: 'Tirupati'
+  },
+  Guntur: {
+    te: 'గుంటూరు', hi: 'गुंटूर', ta: 'குண்டூர்', kn: 'ಗುಂಟೂರು',
+    ml: 'ഗുണ്ടൂർ', mr: 'गुंटूर', gu: 'ગુંટૂર', bn: 'గుంటూర',
+    ur: 'گنٹور', pa: 'ਗੁੰਟੂਰ', or: 'ଗୁଣ୍ଟୁର', en: 'Guntur'
+  },
+  Rajahmundry: {
+    te: 'రాజమండ్రి', hi: 'राजमुंदरी', ta: 'ராஜமுந்திரி', kn: 'ರಾಜಮಂಡ್ರಿ',
+    ml: 'രാജമണ്ഡ്രി', mr: 'राजमुंद्री', gu: 'રાજામુંડરી', bn: 'রাজামুন্দ্রি',
+    ur: 'راجمندری', pa: 'ਰਾਜਮੁੰਦਰੀ', or: 'ରାଜମୁନ୍ଦ୍ରୀ', en: 'Rajahmundry'
+  },
+  Kakinada: {
+    te: 'కాకినాడ', hi: 'काकीनाडा', ta: 'காக்கிநாடா', kn: 'ಕಾಕಿನಾಡ',
+    ml: 'കാക്കിനട', mr: 'काकीनाडा', gu: 'કાકીનાડા', bn: 'কাকিনাডা',
+    ur: 'کاکیناڈا', pa: 'ਕਾਕੀਨਾਡਾ', or: 'କାକିନାଡ଼ା', en: 'Kakinada'
+  },
+  Nellore: {
+    te: 'నెల్లూరు', hi: 'नेल्लोर', ta: 'நெல்லூர்', kn: 'ನೆಲ್ಲೂರು',
+    ml: 'നെല്ലൂർ', mr: 'नेल्लोर', gu: 'નેલ્લોર', bn: 'নেলোর',
+    ur: 'نیلور', pa: 'ਨੇਲੋਰ', or: 'ନେଲୋର', en: 'Nellore'
+  },
+  Kurnool: {
+    te: 'కర్నూలు', hi: 'कुर्नूल', ta: 'கர்நூல்', kn: 'ಕರ್ನೂಲು',
+    ml: 'കർണൂൽ', mr: 'कुर्नूल', gu: 'કુર્નૂલ', bn: 'কুরনুল',
+    ur: 'کرنول', pa: 'ਕਰਨੂਲ', or: 'କର୍ନୁଲ', en: 'Kurnool'
+  },
+  Anantapur: {
+    te: 'అనంతపురం', hi: 'अनंतपुर', ta: 'அனந்தபூர்', kn: 'ಅನಂತಪುರ',
+    ml: 'അനന്തപൂർ', mr: 'अनंतपूर', gu: 'અનંતપુર', bn: 'অনন্তপুর',
+    ur: 'اننت پور', pa: 'ਅਨੰਤਪੁਰ', or: 'ଅନନ୍ତପୁର', en: 'Anantapur'
+  },
+  Warangal: {
+    te: 'వరంగల్', hi: 'वरंगल', ta: 'வரங்கல்', kn: 'ವರಂಗಲ್',
+    ml: 'വരംഗൽ', mr: 'वरंगल', gu: 'વરંગલ', bn: 'ওয়ারঙ্গল',
+    ur: 'وارنگل', pa: 'ਵਰੰਗਲ', or: 'ୱାରଙ୍ଗଲ', en: 'Warangal'
+  },
+  Karimnagar: {
+    te: 'కరీంనగర్', hi: 'करीमनगर', ta: 'கரீம்நகர்', kn: 'ಕರೀಂನಗರ',
+    ml: 'കരീംനഗർ', mr: 'करीमनगर', gu: 'કરીમનગર', bn: 'করিমনগর',
+    ur: 'کریم نگر', pa: 'ਕਰੀਮਨਗਰ', or: 'କରିମନଗର', en: 'Karimnagar'
+  },
+  Mumbai: {
+    te: 'ముంబై', hi: 'मुंबई', ta: 'மும்பை', kn: 'ಮುಂಬೈ',
+    ml: 'മുംബൈ', mr: 'मुंबई', gu: 'મુંબઈ', bn: 'মুম্বাই',
+    ur: 'ممبئی', pa: 'ਮੁੰਬਈ', or: 'ମୁମ୍ବାଇ', en: 'Mumbai'
+  },
+  Pune: {
+    te: 'పుణే', hi: 'पुणे', ta: 'புனே', kn: 'ಪುಣೆ',
+    ml: 'പുനെ', mr: 'पुणे', gu: 'પુણે', bn: 'পুনে',
+    ur: 'پونے', pa: 'ਪੁਣੇ', or: 'ପୁଣେ', en: 'Pune'
+  },
+  Delhi: {
+    te: 'ఢిల్లీ', hi: 'दिल्ली', ta: 'டெல்லி', kn: 'ದೆಹಲಿ',
+    ml: 'ഡൽഹി', mr: 'दिल्ली', gu: 'દિલ્હી', bn: 'দিল্লি',
+    ur: 'دہلی', pa: 'ਦਿੱਲੀ', or: 'ଦିଲ୍ଲୀ', en: 'Delhi'
+  },
+  Kolkata: {
+    te: 'కోల్‌కతా', hi: 'कोलकाता', ta: 'கொல்கத்தா', kn: 'ಕೋಲ್ಕತ್ತಾ',
+    ml: 'കൊൽക്കത്ത', mr: 'कोलकाता', gu: 'કોલકાતા', bn: 'কলকাতা',
+    ur: 'کولکتہ', pa: 'ਕੋਲਕਾਤਾ', or: 'କୋଲକାତା', en: 'Kolkata'
+  },
+  Kochi: {
+    te: 'కొచ్చి', hi: 'कोच्चि', ta: 'கொச்சி', kn: 'ಕೊಚ್ಚಿ',
+    ml: 'കൊച്ചി', mr: 'कोच्ची', gu: 'કોચી', bn: 'কোচি',
+    ur: 'کوچی', pa: 'ਕੋਚੀ', or: 'କୋଚି', en: 'Kochi'
+  },
+  Coimbatore: {
+    te: 'కోయంబత్తూర్', hi: 'कोयंबटूर', ta: 'கோயம்புத்தூர்', kn: 'ಕೊಯಮತ್ತೂರು',
+    ml: 'കോയമ്പത്തൂർ', mr: 'कोइम्बतूर', gu: 'કોઈમ્બતૂર', bn: 'কোয়েম্বাটুর',
+    ur: 'کوئمبتور', pa: 'ਕੋਇੰਬਟੂਰ', or: 'କୋଏମ୍ବାଟୋର', en: 'Coimbatore'
+  },
+  Madurai: {
+    te: 'మదురై', hi: 'मदुरै', ta: 'மதுரை', kn: 'ಮಧುರೈ',
+    ml: 'മധുര', mr: 'मदुराई', gu: 'મદુરાઈ', bn: 'মাদুরাই',
+    ur: 'مدورائی', pa: 'ਮਦੁਰਾਈ', or: 'ମଦୁରାଇ', en: 'Madurai'
+  },
+  Mysuru: {
+    te: 'మైసూరు', hi: 'मैसूरु', ta: 'மைசூரு', kn: 'ಮೈಸೂರು',
+    ml: 'മൈസൂരു', mr: 'मैसूरू', gu: 'મૈસુરુ', bn: 'মহীশূর',
+    ur: 'میسورو', pa: 'ਮੈਸੂਰੂ', or: 'ମୈସୁରୁ', en: 'Mysuru'
+  },
+};
+
 type Translations = Record<string, Record<string, string>>;
 
 const translations: Translations = {
@@ -81,6 +194,10 @@ const translations: Translations = {
     busModel: 'Bus Model',
     maxPriceLabel: 'Max Price',
     minRatingLabel: 'Min Rating',
+    volvo: 'Volvo Multi-Axle',
+    bharatbenz: 'BharatBenz Ultra',
+    otherModel: 'Scania / Eicher / Other',
+    anyRating: 'Any Rating',
     allTypes: 'All Types',
     sleeper: 'Sleeper',
     semiSleeper: 'Semi-Sleeper',
@@ -179,6 +296,10 @@ const translations: Translations = {
     busModel: 'బస్సు మోడల్',
     maxPriceLabel: 'గరిష్ట ధర',
     minRatingLabel: 'కనిష్ట రేటింగ్',
+    volvo: 'వోల్వో మల్టీ-యాక్సిల్',
+    bharatbenz: 'భారత్ బెంజ్',
+    otherModel: 'ఇతర మోడల్స్',
+    anyRating: 'ఏదైనా రేటింగ్',
     allTypes: 'అన్ని రకాలు',
     sleeper: 'స్లీపర్',
     semiSleeper: 'సెమీ-స్లీపర్',
@@ -277,6 +398,10 @@ const translations: Translations = {
     busModel: 'बस मॉडल',
     maxPriceLabel: 'अधिकतम किराया',
     minRatingLabel: 'न्यूनतम रेटिंग',
+    volvo: 'वॉल्वो मल्टी-एक्सल',
+    bharatbenz: 'भारतबेंज',
+    otherModel: 'अन्य मॉडल',
+    anyRating: 'कोई भी रेटिंग',
     allTypes: 'सभी प्रकार',
     sleeper: 'स्लीपर',
     semiSleeper: 'सेमी-स्लीपर',
@@ -375,6 +500,10 @@ const translations: Translations = {
     busModel: 'பேருந்து மாடல்',
     maxPriceLabel: 'அதிகபட்ச விலை',
     minRatingLabel: 'குறைந்தபட்ச ரேட்டிங்',
+    volvo: 'வோல்வோ மல்டி ஆக்ஸில்',
+    bharatbenz: 'பாரத்பென்ஸ்',
+    otherModel: 'மற்றவை',
+    anyRating: 'ஏதேனும் ரேட்டிங்',
     allTypes: 'அனைத்து வகைகள்',
     sleeper: 'ஸ்லீப்பர்',
     semiSleeper: 'செமி-ஸ்லீப்பர்',
@@ -473,6 +602,10 @@ const translations: Translations = {
     busModel: 'ಬಸ್ ಮಾಡೆಲ್',
     maxPriceLabel: 'ಗರಿಷ್ಠ ದರ',
     minRatingLabel: 'ಕನಿಷ್ಠ ರೇಟಿಂಗ್',
+    volvo: 'ವೋಲ್ವೋ ಮಲ್ಟಿ-ಆಕ್ಸಲ್',
+    bharatbenz: 'ಭಾರತ್ ಬೆಂಝ್',
+    otherModel: 'ಇತರ ಮಾದರಿಗಳು',
+    anyRating: 'ಯಾವುದಾದರೂ ರೇಟಿಂಗ್',
     allTypes: 'ಎಲ್ಲಾ ಮಾದರಿಗಳು',
     sleeper: 'ಸ್ಲೀಪರ್',
     semiSleeper: 'ಸೆಮಿ-ಸ್ಲೀಪರ್',
@@ -571,6 +704,10 @@ const translations: Translations = {
     busModel: 'ബസ് മോഡൽ',
     maxPriceLabel: 'പരമാവധി നിരക്ക്',
     minRatingLabel: 'കുറഞ്ഞ റേറ്റിംഗ്',
+    volvo: 'വോൾവോ മൾട്ടി-ആക്‌സൽ',
+    bharatbenz: 'ഭാരത് ബെൻസ്',
+    otherModel: 'മറ്റു മോഡലുകൾ',
+    anyRating: 'ഏതും റേറ്റിംഗ്',
     allTypes: 'എല്ലാ തരം',
     sleeper: 'സ്ലീപ്പർ',
     semiSleeper: 'സെമി സ്ലീപ്പർ',
@@ -669,6 +806,10 @@ const translations: Translations = {
     busModel: 'बस मॉडेल',
     maxPriceLabel: 'जास्तीत जास्त दर',
     minRatingLabel: 'किमान रेटिंग',
+    volvo: 'वॉल्वो मल्टी-अ‍ॅक्सल',
+    bharatbenz: 'भारतबेंझ',
+    otherModel: 'इतर मॉडेल',
+    anyRating: 'कोणतेही रेटिंग',
     allTypes: 'सर्व प्रकार',
     sleeper: 'स्लीपर',
     semiSleeper: 'सेमी-स्लीपर',
@@ -767,6 +908,10 @@ const translations: Translations = {
     busModel: 'બસ મોડેલ',
     maxPriceLabel: 'મહત્તમ ભાડું',
     minRatingLabel: 'ન્યૂનતમ રેટિંગ',
+    volvo: 'વોલ્વો મલ્ટી-એક્સલ',
+    bharatbenz: 'ભારતબેન્ઝ',
+    otherModel: 'અન્ય મોડેલો',
+    anyRating: 'કોઈપણ રેટિંગ',
     allTypes: 'તમામ પ્રકાર',
     sleeper: 'સ્લીપર',
     semiSleeper: 'સેમી-સ્લીપર',
@@ -865,6 +1010,10 @@ const translations: Translations = {
     busModel: 'বাসের মডেল',
     maxPriceLabel: 'সর্বোচ্চ ভাড়া',
     minRatingLabel: 'সর্বনিম্ন রেটিং',
+    volvo: 'ভোলভ মাল্টি-অ্যাক্সেল',
+    bharatbenz: 'ভারতবেঞ্জ',
+    otherModel: 'অন্যান্য মডেল',
+    anyRating: 'যেকোনো রেটিং',
     allTypes: 'সব ধরন',
     sleeper: 'স্লিপার',
     semiSleeper: 'সেমি-স্লিপার',
@@ -963,6 +1112,10 @@ const translations: Translations = {
     busModel: 'بس ماڈل',
     maxPriceLabel: 'زیادہ سے زیادہ کرایہ',
     minRatingLabel: 'کم از کم ریٹنگ',
+    volvo: 'وولوو ملٹی ایکسل',
+    bharatbenz: 'بھارت بینز',
+    otherModel: 'دیگر ماڈلز',
+    anyRating: 'کوئی بھی ریٹنگ',
     allTypes: 'تمام اقسام',
     sleeper: 'سلیپر',
     semiSleeper: 'سیمی سلیپر',
@@ -1061,6 +1214,10 @@ const translations: Translations = {
     busModel: 'ਬੱਸ ਮਾਡਲ',
     maxPriceLabel: 'ਵੱਧ ਤੋਂ ਵੱਧ ਕਿਰਾਇਆ',
     minRatingLabel: 'ਘੱਟੋ-ਘੱਟ ਰੇਟਿੰਗ',
+    volvo: 'ਵੋਲਵੋ ਮਲਟੀ-ਐਕਸਲ',
+    bharatbenz: 'ਭਾਰਤਬੈਂਜ਼',
+    otherModel: 'ਹੋਰ ਮਾਡਲ',
+    anyRating: 'ਕੋਈ ਵੀ ਰੇਟਿੰਗ',
     allTypes: 'ਸਾਰੀਆਂ ਕਿਸਮਾਂ',
     sleeper: 'ਸਲੀਪਰ',
     semiSleeper: 'ਸੈਮੀ-ਸਲੀਪਰ',
@@ -1159,6 +1316,10 @@ const translations: Translations = {
     busModel: 'ବସ୍ ମଡେଲ୍',
     maxPriceLabel: 'ସର୍ବାଧିକ ଭଡା',
     minRatingLabel: 'ସର୍ବନିମ୍ନ ରେଟିଂ',
+    volvo: 'ଭୋଲଭୋ ମଲ୍ଟି-ଆକ୍ସଲ୍',
+    bharatbenz: 'ଭାରତବେଞ୍ଜ',
+    otherModel: 'ଅନ୍ୟାନ୍ୟ ମଡେଲ୍',
+    anyRating: 'କୌଣସି ରେଟିଂ',
     allTypes: 'ସମସ୍ତ ପ୍ରକାର',
     sleeper: 'ସ୍ଲିପର୍',
     semiSleeper: 'ସେମି-ସ୍ଲିପର୍',
@@ -1206,6 +1367,7 @@ interface LanguageContextType {
   currentLanguage: string;
   setLanguage: (code: string) => void;
   t: (key: string) => string;
+  getCityName: (city: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -1224,8 +1386,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     return langDict[key] || translations.en[key] || key;
   };
 
+  const getCityName = (city: string): string => {
+    if (!city) return '';
+    const cityDict = CITY_TRANSLATIONS[city];
+    if (!cityDict) return city;
+    return cityDict[currentLanguage] || cityDict.en || city;
+  };
+
   return (
-    <LanguageContext.Provider value={{ currentLanguage, setLanguage, t }}>
+    <LanguageContext.Provider value={{ currentLanguage, setLanguage, t, getCityName }}>
       {children}
     </LanguageContext.Provider>
   );

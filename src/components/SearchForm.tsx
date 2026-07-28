@@ -36,7 +36,7 @@ export const CITIES = [
 
 export default function SearchForm({ initialParams, compact = false }: SearchFormProps) {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, getCityName } = useLanguage();
 
   const [origin, setOrigin] = useState(initialParams?.origin || '');
   const [destination, setDestination] = useState(initialParams?.destination || '');
@@ -65,7 +65,11 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
           <label className="mb-1 block text-xs font-semibold text-slate-500">{t('fromLabel')}</label>
           <select value={origin} onChange={(e) => setOrigin(e.target.value)} className="input-field" required>
             <option value="">{t('selectOrigin')}</option>
-            {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CITIES.map((c) => (
+              <option key={c} value={c}>
+                {getCityName(c)}
+              </option>
+            ))}
           </select>
         </div>
         <button type="button" onClick={swap} title={t('swapBtn')} className="mx-auto rounded-lg border border-slate-200 p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 sm:mb-2">
@@ -75,7 +79,11 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
           <label className="mb-1 block text-xs font-semibold text-slate-500">{t('toLabel')}</label>
           <select value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field" required>
             <option value="">{t('selectDestination')}</option>
-            {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CITIES.map((c) => (
+              <option key={c} value={c}>
+                {getCityName(c)}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex-1">
@@ -97,7 +105,11 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
         </label>
         <select value={origin} onChange={(e) => setOrigin(e.target.value)} className="input-field text-base font-medium" required>
           <option value="">{t('selectOrigin')}</option>
-          {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {CITIES.map((c) => (
+            <option key={c} value={c}>
+              {getCityName(c)}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex items-end justify-center pb-1">
@@ -111,7 +123,11 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
         </label>
         <select value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field text-base font-medium" required>
           <option value="">{t('selectDestination')}</option>
-          {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {CITIES.map((c) => (
+            <option key={c} value={c}>
+              {getCityName(c)}
+            </option>
+          ))}
         </select>
       </div>
       <div>

@@ -1,8 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getSessionId } from '../lib/session';
-import { useAuth } from '../context/AuthContext';
 import type { BusListingWithRoute } from '../lib/types';
 import SearchForm from '../components/SearchForm';
 import BusCard from '../components/BusCard';
@@ -93,8 +91,7 @@ function generateDynamicListings(origin: string, destination: string, travelDate
 
 export default function ResultsPage() {
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, getCityName } = useLanguage();
   
   const origin = searchParams.get('origin') || '';
   const destination = searchParams.get('destination') || '';
@@ -154,7 +151,6 @@ export default function ResultsPage() {
       if (dbResults && dbResults.length > 0) {
         setListings(dbResults);
       } else {
-        // Instant dynamic listings across all 22 cities & 6 OTAs (12 buses per route)
         const dynamicResults = generateDynamicListings(origin, destination, date);
         setListings(dynamicResults);
       }
@@ -227,7 +223,7 @@ export default function ResultsPage() {
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">
-            {origin} → {destination}
+            {getCityName(origin)} → {getCityName(destination)}
           </h1>
           <p className="text-sm text-slate-500">
             {loading ? t('processing') : `${filtered.length} ${t('busesFound')}`}
@@ -249,7 +245,7 @@ export default function ResultsPage() {
             className="input-field w-auto"
           >
             <option value="price_low">{t('priceLowHigh')}</option>
-            <option value="price_high">Price: High to Low</option>
+            <option value="price_high">{t('priceHighLow')}</option>
             <option value="rating">{t('ratingHighLow')}</option>
             <option value="duration">{t('duration')}</option>
           </select>

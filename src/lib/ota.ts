@@ -1,11 +1,14 @@
 import type { BusListingWithRoute } from './types';
 
 function slugify(city: string): string {
-  return city.toLowerCase().replace(/\s+/g, '-');
+  if (!city || city === 'undefined') return 'visakhapatnam';
+  return city.toLowerCase().trim().replace(/\s+/g, '-');
 }
 
 function formatRedBusDate(dateStr: string): string {
-  // Converts YYYY-MM-DD -> DD-MMM-YYYY (e.g. 2026-07-28 -> 28-Jul-2026)
+  if (!dateStr || dateStr === 'undefined') {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
   const dateObj = new Date(dateStr);
   const day = String(dateObj.getDate()).padStart(2, '0');
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -14,27 +17,39 @@ function formatRedBusDate(dateStr: string): string {
   return `${day}-${month}-${year}`;
 }
 
-export function buildOtaDeepLink(listing: BusListingWithRoute): string {
-  const origin = slugify(listing.routes.origin_city);
-  const destination = slugify(listing.routes.destination_city);
-  const travelDate = listing.travel_date;
+export function buildOtaDeepLink(listing: BusListingWithRoute | any): string {
+  const rawOrigin =
+    listing.routes?.origin_city ||
+    listing.origin_city ||
+    listing.origin ||
+    'Visakhapatnam';
+  const rawDestination =
+    listing.routes?.destination_city ||
+    listing.destination_city ||
+    listing.destination ||
+    'Hyderabad';
+  const travelDate =
+    listing.travel_date || new Date().toISOString().split('T')[0];
+
+  const originSlug = slugify(rawOrigin);
+  const destSlug = slugify(rawDestination);
   const redBusDate = formatRedBusDate(travelDate);
 
   switch (listing.ota_source) {
     case 'redBus':
-      return `https://www.redbus.in/bus-tickets/${origin}-to-${destination}?date=${redBusDate}`;
+      return `https://www.redbus.in/bus-tickets/${originSlug}-to-${destSlug}?date=${redBusDate}`;
     case 'MakeMyTrip':
-      return `https://www.makemytrip.com/bus/search/${listing.routes.origin_city}/${listing.routes.destination_city}/${travelDate}`;
+      return `https://www.makemytrip.com/bus/search/${encodeURIComponent(rawOrigin)}/${encodeURIComponent(rawDestination)}/${travelDate}`;
     case 'AbhiBus':
-      return `https://www.abhibus.com/bus-booking/${origin}-to-${destination}?date=${travelDate}`;
+      return `https://www.abhibus.com/bus-booking/${originSlug}-to-${destSlug}?date=${travelDate}`;
     case 'TravelYaari':
-      return `https://www.travelyaari.com/bus-search?from=${origin}&to=${destination}&date=${travelDate}`;
+      return `https://www.travelyaari.com/bus-search?from=${encodeURIComponent(rawOrigin)}&to=${encodeURIComponent(rawDestination)}&date=${travelDate}`;
     case 'EaseMyTrip':
-      return `https://www.easemytrip.com/bus-booking/${origin}-to-${destination}?date=${travelDate}`;
+      return `https://www.easemytrip.com/bus-booking/${originSlug}-to-${destSlug}?date=${travelDate}`;
     case 'PaytmBus':
-      return `https://paytm.com/bus-tickets/${origin}-to-${destination}?date=${travelDate}`;
+      return `https://paytm.com/bus-tickets/${originSlug}-to-${destSlug}?date=${travelDate}`;
     default:
-      return `https://www.redbus.in/bus-tickets/${origin}-to-${destination}?date=${redBusDate}`;
+      return `https://www.redbus.in/bus-tickets/${originSlug}-to-${destSlug}?date=${redBusDate}`;
   }
 }
 

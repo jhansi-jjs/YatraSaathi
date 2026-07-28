@@ -24,7 +24,7 @@ const OTA_COLORS: Record<string, string> = {
 
 export default function BusCard({ listing, index }: BusCardProps) {
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, getCityName } = useLanguage();
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   const handleDirectOtaRedirect = async () => {
@@ -59,6 +59,8 @@ export default function BusCard({ listing, index }: BusCardProps) {
   };
 
   const otaColor = OTA_COLORS[listing.ota_source] || 'bg-slate-100 text-slate-600';
+  const originCity = listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
+  const destCity = listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
 
   return (
     <>
@@ -88,7 +90,9 @@ export default function BusCard({ listing, index }: BusCardProps) {
                 {listing.ac_status === 'ac' ? <Snowflake className="h-3 w-3 text-blue-500" /> : <Fan className="h-3 w-3 text-slate-400" />}
                 {listing.ac_status === 'ac' ? t('ac') : t('nonAc')}
               </span>
-              <span className="badge bg-slate-100 text-slate-600 capitalize font-medium">{listing.bus_model}</span>
+              <span className="badge bg-slate-100 text-slate-600 capitalize font-medium">
+                {listing.bus_model === 'volvo' ? t('volvo') : listing.bus_model === 'bharatbenz' ? t('bharatbenz') : t('otherModel')}
+              </span>
             </div>
           </div>
 
@@ -96,7 +100,7 @@ export default function BusCard({ listing, index }: BusCardProps) {
           <div className="flex items-center gap-4 lg:px-6">
             <div className="text-center">
               <p className="text-lg font-bold text-slate-900">{listing.departure_time}</p>
-              <p className="text-xs text-slate-400 font-medium">{listing.routes.origin_city}</p>
+              <p className="text-xs text-slate-400 font-medium">{getCityName(originCity)}</p>
             </div>
             <div className="flex flex-col items-center">
               <Clock className="h-3.5 w-3.5 text-slate-300" />
@@ -105,7 +109,7 @@ export default function BusCard({ listing, index }: BusCardProps) {
             </div>
             <div className="text-center">
               <p className="text-lg font-bold text-slate-900">{listing.arrival_time}</p>
-              <p className="text-xs text-slate-400 font-medium">{listing.routes.destination_city}</p>
+              <p className="text-xs text-slate-400 font-medium">{getCityName(destCity)}</p>
             </div>
           </div>
 

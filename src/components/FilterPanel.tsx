@@ -55,7 +55,9 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
                 onChange={() => toggleArray('busTypes', type)}
                 className="h-4 w-4 rounded border-slate-300 text-[#0066ff] focus:ring-[#0066ff]"
               />
-              <span className="capitalize">{type === 'sleeper' ? t('sleeper') : type === 'semi-sleeper' ? t('semiSleeper') : t('seater')}</span>
+              <span className="capitalize">
+                {type === 'sleeper' ? t('sleeper') : type === 'semi-sleeper' ? t('semiSleeper') : t('seater')}
+              </span>
             </label>
           ))}
         </div>
@@ -91,7 +93,9 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
                 onChange={() => toggleArray('busModels', model)}
                 className="h-4 w-4 rounded border-slate-300 text-[#0066ff] focus:ring-[#0066ff]"
               />
-              <span className="capitalize">{model}</span>
+              <span className="capitalize">
+                {model === 'volvo' ? t('volvo') : model === 'bharatbenz' ? t('bharatbenz') : t('otherModel')}
+              </span>
             </label>
           ))}
         </div>
@@ -116,7 +120,7 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
       {/* Min Rating */}
       <div>
         <p className="mb-2 text-xs font-semibold text-slate-500">
-          {t('minRatingLabel')}: {filters.minRating > 0 ? `${filters.minRating}★` : 'Any'}
+          {t('minRatingLabel')}: {filters.minRating > 0 ? `${filters.minRating}★` : t('anyRating')}
         </p>
         <input
           type="range"

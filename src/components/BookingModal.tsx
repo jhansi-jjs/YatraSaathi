@@ -9,12 +9,11 @@ interface BookingModalProps {
 }
 
 export default function BookingModal({ listing, onClose }: BookingModalProps) {
-  const { t } = useLanguage();
+  const { t, getCityName } = useLanguage();
 
   const [selectedSeats, setSelectedSeats] = useState<string[]>(['L4']);
   const [passengerName, setPassengerName] = useState('');
   const [passengerAge, setPassengerAge] = useState('');
-  const [gender, setGender] = useState('male');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
@@ -28,6 +27,9 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
   const baseFare = seatPrice * numSeats;
   const gst = Math.round(baseFare * 0.05);
   const totalPayable = baseFare + gst;
+
+  const originCity = listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
+  const destCity = listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
 
   const toggleSeat = (seatId: string) => {
     if (selectedSeats.includes(seatId)) {
@@ -68,7 +70,7 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
                 {listing.ota_source} Partner Booking
               </span>
               <h2 className="text-xl font-extrabold text-slate-900">
-                {listing.operator_name} ({listing.routes.origin_city} → {listing.routes.destination_city})
+                {listing.operator_name} ({getCityName(originCity)} → {getCityName(destCity)})
               </h2>
               <p className="text-xs text-slate-500 mt-1">
                 {listing.departure_time} · {listing.bus_type.toUpperCase()} · {listing.ac_status.toUpperCase()}
@@ -266,7 +268,7 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <p className="text-slate-400">Route</p>
-                  <p className="font-bold text-white text-sm">{listing.routes.origin_city} → {listing.routes.destination_city}</p>
+                  <p className="font-bold text-white text-sm">{getCityName(originCity)} → {getCityName(destCity)}</p>
                 </div>
                 <div>
                   <p className="text-slate-400">Operator & Bus</p>
