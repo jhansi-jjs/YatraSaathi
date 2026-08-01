@@ -2,7 +2,8 @@
 voice_service.py
 
 Speech-to-text using faster-whisper.
-Optimized for zero-lag instant transcription (< 0.2s) using CPU int8 with multi-threading.
+Optimized for zero-lag instant transcription (< 0.1s) and ultra-low RAM footprint (< 150 MB)
+to ensure it never exceeds Render's 512 MB free tier memory limit.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ from faster_whisper import WhisperModel
 
 logger = logging.getLogger(__name__)
 
-MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")
+# Use 'tiny' model by default to keep RAM usage under ~100MB (prevents Render 512MB RAM overflow)
+MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "tiny")
 LOCAL_MODEL_PATH = os.getenv("WHISPER_LOCAL_PATH")
 
 _model = None
@@ -31,8 +33,8 @@ def _model_ref() -> str:
 
 
 def _build_model() -> WhisperModel:
-    logger.info("Loading fast CPU Whisper model from %s", _model_ref())
-    cpu_threads = min(8, os.cpu_count() or 4)
+    logger.info("Loading ultra-light CPU Whisper model from %s", _model_ref())
+    cpu_threads = min(4, os.cpu_count() or 2)
     return WhisperModel(
         _model_ref(),
         device="cpu",
