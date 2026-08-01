@@ -2,76 +2,128 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, Square, Globe, Loader2, Sparkles, Volume2 } from 'lucide-react';
 import { CITIES } from './SearchForm';
-import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption } from '../context/LanguageContext';
+import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
     ? import.meta.env.VITE_BACKEND_URL
     : 'https://yatrasaathi.onrender.com';
 
-const CITY_ALIASES: Record<string, string> = {
-  vizag: 'Visakhapatnam',
-  visakha: 'Visakhapatnam',
-  visakhapatnam: 'Visakhapatnam',
-  hyd: 'Hyderabad',
-  hyderabad: 'Hyderabad',
-  vja: 'Vijayawada',
-  vijayawada: 'Vijayawada',
-  bezawada: 'Vijayawada',
-  chennai: 'Chennai',
-  madras: 'Chennai',
-  blr: 'Bengaluru',
-  bangalore: 'Bengaluru',
-  bengaluru: 'Bengaluru',
-  tirupati: 'Tirupati',
-  guntur: 'Guntur',
-  rajahmundry: 'Rajahmundry',
-  rajahmundri: 'Rajahmundry',
-  kakinada: 'Kakinada',
-  nellore: 'Nellore',
-  kurnool: 'Kurnool',
-  anantapur: 'Anantapur',
-  warangal: 'Warangal',
-  karimnagar: 'Karimnagar',
-  mumbai: 'Mumbai',
-  bombay: 'Mumbai',
-  pune: 'Pune',
-  delhi: 'Delhi',
-  dilli: 'Delhi',
-  kolkata: 'Kolkata',
-  calcutta: 'Kolkata',
-  kochi: 'Kochi',
-  cochin: 'Kochi',
-  coimbatore: 'Coimbatore',
-  madurai: 'Madurai',
-  mysuru: 'Mysuru',
-  mysore: 'Mysuru',
+export const CITY_ALIASES: Record<string, string> = {
+  // Visakhapatnam
+  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', visakha: 'Visakhapatnam',
+  వైజాగ్: 'Visakhapatnam', విశాఖపట్నం: 'Visakhapatnam', विशाखापट्टनम: 'Visakhapatnam',
+  விசாகப்பட்டினம்: 'Visakhapatnam', ವಿಶಾಖಪಟ್ಟಣ: 'Visakhapatnam', വിശാഖപട്ടണം: 'Visakhapatnam',
+  વિશાખાપટ્ટનમ: 'Visakhapatnam', విశాఖ: 'Visakhapatnam',
+
+  // Hyderabad
+  hyderabad: 'Hyderabad', hyd: 'Hyderabad', హైదరాబాద్: 'Hyderabad', హైదరాబాదు: 'Hyderabad',
+  हैदराबाद: 'Hyderabad', ஹைதராபாத்: 'Hyderabad', ಹೈದರಾಬಾದ್: 'Hyderabad', ഹൈദരാബാദ്: 'Hyderabad',
+  હૈદરાબાદ: 'Hyderabad', হায়দ্রাবাদ: 'Hyderabad', حیدرآباد: 'Hyderabad',
+
+  // Vijayawada
+  vijayawada: 'Vijayawada', vja: 'Vijayawada', bezawada: 'Vijayawada',
+  విజయవాడ: 'Vijayawada', బెజవాడ: 'Vijayawada', विजयवाड़ा: 'Vijayawada', விஜயவாடா: 'Vijayawada',
+  ವಿಜಯವಾಡ: 'Vijayawada', വിജയവാഡ: 'Vijayawada', વિજયવાડા: 'Vijayawada',
+
+  // Chennai
+  chennai: 'Chennai', madras: 'Chennai', చెన్నై: 'Chennai', మద్రాస్: 'Chennai',
+  चेन्नई: 'Chennai', मद्रास: 'Chennai', சென்னை: 'Chennai', மதராஸ்: 'Chennai',
+  ಚೆನ್ನೈ: 'Chennai', ചെന്നൈ: 'Chennai', ચેન્નઈ: 'Chennai',
+
+  // Bengaluru
+  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', blr: 'Bengaluru',
+  బెంగళూరు: 'Bengaluru', బెంగుళూరు: 'Bengaluru', बेंगलुरु: 'Bengaluru', बैंगलोर: 'Bengaluru',
+  பெங்களூரு: 'Bengaluru', ಬೆಂಗಳೂರು: 'Bengaluru', ബംഗളൂരു: 'Bengaluru', બેંગલુરુ: 'Bengaluru',
+
+  // Tirupati
+  tirupati: 'Tirupati', తిరుపతి: 'Tirupati', तिरुपति: 'Tirupati', திருப்பதி: 'Tirupati',
+  ತಿರುಪತಿ: 'Tirupati', തിരുപ്പതി: 'Tirupati', તિરુપતિ: 'Tirupati',
+
+  // Guntur
+  guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', குண்டூர்: 'Guntur',
+  ಗುಂಟೂರು: 'Guntur', ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
+
+  // Rajahmundry
+  rajahmundry: 'Rajahmundry', rajahmundri: 'Rajahmundry', రాజమండ్రి: 'Rajahmundry',
+  राजमुंदरी: 'Rajahmundry', ராஜமுந்திரி: 'Rajahmundry', ರಾಜಮಂಡ್ರಿ: 'Rajahmundry',
+  രാജമണ്ഡ്രി: 'Rajahmundry', રાજામુંડરી: 'Rajahmundry',
+
+  // Kakinada
+  kakinada: 'Kakinada', కాకినాడ: 'Kakinada', काकीनाडा: 'Kakinada', காக்கிநாடா: 'Kakinada',
+  ಕಾಕಿನಾಡ: 'Kakinada', കാക്കിനട: 'Kakinada', કાકીનાડા: 'Kakinada',
+
+  // Nellore
+  nellore: 'Nellore', నెల్లూరు: 'Nellore', नेल्लोर: 'Nellore', நெல்லூர்: 'Nellore',
+  ನೆಲ್ಲೂರು: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
+
+  // Kurnool
+  kurnool: 'Kurnool', కర్నూలు: 'Kurnool', कुर्नूल: 'Kurnool', கர்நூல்: 'Kurnool',
+  ಕರ್ನೂಲು: 'Kurnool', കർണൂൽ: 'Kurnool', કુર્નૂલ: 'Kurnool',
+
+  // Anantapur
+  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தபூர்: 'Anantapur',
+  ಅನಂತಪುರ: 'Anantapur', അനന്തപൂർ: 'Anantapur', અનંતપુર: 'Anantapur',
+
+  // Warangal
+  warangal: 'Warangal', వరంగల్: 'Warangal', वरंगल: 'Warangal', வரங்கல்: 'Warangal',
+  ವರಂಗಲ್: 'Warangal', വരംഗൽ: 'Warangal', વરંગલ: 'Warangal',
+
+  // Karimnagar
+  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar', கரீம்நகர்: 'Karimnagar',
+  ಕರೀಂನಗರ: 'Karimnagar', കരീംനഗർ: 'Karimnagar', કરીમનગર: 'Karimnagar',
+
+  // Mumbai
+  mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
+  मुंबई: 'Mumbai', बंबई: 'Mumbai', மும்பை: 'Mumbai', ಮುಂಬೈ: 'Mumbai',
+  മുംബൈ: 'Mumbai', મુંબઈ: 'Mumbai',
+
+  // Pune
+  pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
+  புனே: 'Pune', ಪುಣೆ: 'Pune', പുനെ: 'Pune', પુણે: 'Pune',
+
+  // Delhi
+  delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
+  दिल्ली: 'Delhi', दिल्लि: 'Delhi', டெல்லி: 'Delhi', ದೆಹಲಿ: 'Delhi',
+  ഡൽഹി: 'Delhi', દિલ્હી: 'Delhi',
+
+  // Kolkata
+  kolkata: 'Kolkata', calcutta: 'Kolkata', కోల్‌కతా: 'Kolkata', కలకత్తా: 'Kolkata',
+  कोलकाता: 'Kolkata', कलकत्ता: 'Kolkata', கொல்கத்தா: 'Kolkata', ಕೋಲ್ಕತ್ತಾ: 'Kolkata',
+  കൊൽക്കത്ത: 'Kolkata', કોલકાતા: 'Kolkata',
+
+  // Kochi
+  kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
+  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi', ಕೊಚ್ಚಿ: 'Kochi',
+  കൊച്ചി: 'Kochi', કોચી: 'Kochi',
+
+  // Coimbatore
+  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
+  கோயம்புத்தூர்: 'Coimbatore', ಕೊಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
+  કોઈમ્બતૂર: 'Coimbatore',
+
+  // Madurai
+  madurai: 'Madurai', మదురై: 'Madurai', मदेरै: 'Madurai', मदुरै: 'Madurai',
+  மதுரை: 'Madurai', ಮಧುರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
+
+  // Mysuru
+  mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
+  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூரு: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
+  മൈസൂരു: 'Mysuru', મૈસુરુ: 'Mysuru',
 };
 
 const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
-  telugu: 'te',
-  తెలుగు: 'te',
-  hindi: 'hi',
-  हिंदी: 'hi',
-  хиन्दी: 'hi',
-  tamil: 'ta',
-  தமிழ்: 'ta',
-  kannada: 'kn',
-  ಕನ್ನಡ: 'kn',
-  malayalam: 'ml',
-  മലയാളം: 'ml',
-  marathi: 'mr',
-  मराठी: 'mr',
-  gujarati: 'gu',
-  ગુજરાતી: 'gu',
-  bengali: 'bn',
-  বাংলা: 'bn',
-  urdu: 'ur',
-  اردو: 'ur',
-  punjabi: 'pa',
-  ਪੰਜਾਬੀ: 'pa',
-  odia: 'or',
-  ଓଡ଼ିଆ: 'or',
+  telugu: 'te', తెలుగు: 'te',
+  hindi: 'hi', हिंदी: 'hi', хиन्दी: 'hi',
+  tamil: 'ta', தமிழ்: 'ta',
+  kannada: 'kn', ಕನ್ನಡ: 'kn',
+  malayalam: 'ml', മലയാളം: 'ml',
+  marathi: 'mr', मराठी: 'mr',
+  gujarati: 'gu', ગુજરાતી: 'gu',
+  bengali: 'bn', বাংলা: 'bn',
+  urdu: 'ur', اردو: 'ur',
+  punjabi: 'pa', ਪੰਜਾਬੀ: 'pa',
+  odia: 'or', ଓଡ଼ିଆ: 'or',
   english: 'en',
 };
 
@@ -148,20 +200,20 @@ function speakWithBrowser(text: string, languageCode: string) {
 }
 
 function clientSideParseIntent(text: string, defaultLang: string) {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
   let lang = defaultLang;
 
   // Auto-detect spoken language from script or keywords
-  if (/[\u0C00-\u0C7F]/.test(text)) lang = 'te'; // Telugu script
-  else if (/[\u0900-\u097F]/.test(text)) lang = 'hi'; // Hindi/Marathi script
-  else if (/[\u0B80-\u0BFF]/.test(text)) lang = 'ta'; // Tamil script
-  else if (/[\u0C80-\u0CFF]/.test(text)) lang = 'kn'; // Kannada script
-  else if (/[\u0D00-\u0D7F]/.test(text)) lang = 'ml'; // Malayalam script
-  else if (/[\u0A80-\u0AFF]/.test(text)) lang = 'gu'; // Gujarati script
-  else if (/[\u0980-\u09FF]/.test(text)) lang = 'bn'; // Bengali script
-  else if (/[\u0600-\u06FF]/.test(text)) lang = 'ur'; // Urdu script
-  else if (/[\u0A00-\u0A7F]/.test(text)) lang = 'pa'; // Punjabi script
-  else if (/[\u0B00-\u0B7F]/.test(text)) lang = 'or'; // Odia script
+  if (/[\u0C00-\u0C7F]/.test(text)) lang = 'te';
+  else if (/[\u0900-\u097F]/.test(text)) lang = 'hi';
+  else if (/[\u0B80-\u0BFF]/.test(text)) lang = 'ta';
+  else if (/[\u0C80-\u0CFF]/.test(text)) lang = 'kn';
+  else if (/[\u0D00-\u0D7F]/.test(text)) lang = 'ml';
+  else if (/[\u0A80-\u0AFF]/.test(text)) lang = 'gu';
+  else if (/[\u0980-\u09FF]/.test(text)) lang = 'bn';
+  else if (/[\u0600-\u06FF]/.test(text)) lang = 'ur';
+  else if (/[\u0A00-\u0A7F]/.test(text)) lang = 'pa';
+  else if (/[\u0B00-\u0B7F]/.test(text)) lang = 'or';
 
   for (const [kw, code] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
     if (lower.includes(kw)) {
@@ -170,11 +222,11 @@ function clientSideParseIntent(text: string, defaultLang: string) {
     }
   }
 
+  // Multilingual substring matching for all city aliases
   const foundCities: string[] = [];
-  for (const [word, city] of Object.entries(CITY_ALIASES)) {
-    const reg = new RegExp('\\b' + word + '\\b', 'i');
-    if (reg.test(lower) && !foundCities.includes(city)) {
-      foundCities.push(city);
+  for (const [alias, canonicalCity] of Object.entries(CITY_ALIASES)) {
+    if (lower.includes(alias.toLowerCase()) && !foundCities.includes(canonicalCity)) {
+      foundCities.push(canonicalCity);
     }
   }
 
@@ -207,9 +259,14 @@ function clientSideParseIntent(text: string, defaultLang: string) {
   }
 
   const ready = Boolean(origin && destination);
+
+  // Get translated city names for natural regional spoken confirmation
+  const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
+  const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
+
   const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
   const spoken = ready
-    ? confirmationFn(origin!, destination!)
+    ? confirmationFn(originNative, destNative)
     : CLARIFICATIONS[lang] || CLARIFICATIONS['en'];
 
   return {
@@ -232,7 +289,6 @@ export default function VoiceSearchBar() {
   const { currentLanguage, setLanguage, t } = useLanguage();
 
   const [languages, setLanguages] = useState<LanguageOption[]>(SUPPORTED_LANGUAGES);
-  const [selectedVoiceLang, setSelectedVoiceLang] = useState<string>('te');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -274,21 +330,21 @@ export default function VoiceSearchBar() {
         recog.continuous = true;
         recog.interimResults = true;
         recog.lang =
-          selectedVoiceLang === 'te'
+          currentLanguage === 'te'
             ? 'te-IN'
-            : selectedVoiceLang === 'hi'
+            : currentLanguage === 'hi'
             ? 'hi-IN'
-            : selectedVoiceLang === 'ta'
+            : currentLanguage === 'ta'
             ? 'ta-IN'
-            : selectedVoiceLang === 'kn'
+            : currentLanguage === 'kn'
             ? 'kn-IN'
-            : selectedVoiceLang === 'ml'
+            : currentLanguage === 'ml'
             ? 'ml-IN'
-            : selectedVoiceLang === 'mr'
+            : currentLanguage === 'mr'
             ? 'mr-IN'
-            : selectedVoiceLang === 'gu'
+            : currentLanguage === 'gu'
             ? 'gu-IN'
-            : selectedVoiceLang === 'bn'
+            : currentLanguage === 'bn'
             ? 'bn-IN'
             : 'en-IN';
 
@@ -302,6 +358,13 @@ export default function VoiceSearchBar() {
           setTranscript(currentText);
 
           const lowerText = currentText.toLowerCase();
+
+          // Check if user asked to change language
+          for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
+            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
+              setLanguage(langCode);
+            }
+          }
 
           // Check for multilingual voice stop commands
           for (const stopWord of STOP_KEYWORDS) {
@@ -386,13 +449,18 @@ export default function VoiceSearchBar() {
 
   function processTextDirectly(text: string) {
     setIsProcessing(true);
-    const parsed = clientSideParseIntent(text, selectedVoiceLang);
+    const parsed = clientSideParseIntent(text, currentLanguage);
 
     setTranscript(parsed.transcript);
     setSpokenText(parsed.spoken_text);
     setNeedsClarification(parsed.needs_clarification);
 
-    // Speak back in the exact target regional language (without forcing full UI script change)
+    // Sync app language to spoken language
+    if (parsed.intent.language !== currentLanguage) {
+      setLanguage(parsed.intent.language);
+    }
+
+    // Speak back in the target regional language
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
@@ -413,7 +481,7 @@ export default function VoiceSearchBar() {
 
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
-    formData.append('selected_language', selectedVoiceLang);
+    formData.append('selected_language', currentLanguage);
     formData.append('valid_cities', CITIES.join(','));
 
     try {
@@ -429,7 +497,11 @@ export default function VoiceSearchBar() {
       setSpokenText(data.spoken_text);
       setNeedsClarification(data.needs_clarification);
 
-      speakWithBrowser(data.spoken_text, data.intent?.language || selectedVoiceLang);
+      if (data.intent?.language && data.intent.language !== currentLanguage) {
+        setLanguage(data.intent.language);
+      }
+
+      speakWithBrowser(data.spoken_text, data.intent?.language || currentLanguage);
 
       if (data.ready_to_search && data.intent.origin && data.intent.destination) {
         const params = new URLSearchParams({
@@ -452,15 +524,15 @@ export default function VoiceSearchBar() {
       <div className="flex w-full flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-amber-400" />
-          <h3 className="text-base font-bold text-white">Voice Bus Search</h3>
+          <h3 className="text-base font-bold text-white">{t('voiceTitle')}</h3>
         </div>
 
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4 text-blue-400" />
-          <span className="text-xs text-slate-300">Voice Language:</span>
+          <span className="text-xs text-slate-300">{t('voiceLanguageLabel')}:</span>
           <select
-            value={selectedVoiceLang}
-            onChange={(e) => setSelectedVoiceLang(e.target.value)}
+            value={currentLanguage}
+            onChange={(e) => setLanguage(e.target.value)}
             className="rounded-lg border border-white/20 bg-slate-800 px-3 py-1 text-xs font-semibold text-white outline-none cursor-pointer hover:border-blue-400 transition-colors"
           >
             {languages.map((lang) => (
@@ -472,9 +544,7 @@ export default function VoiceSearchBar() {
         </div>
       </div>
 
-      <p className="max-w-xl text-center text-xs sm:text-sm text-slate-300">
-        Tap the mic & speak your route in your preferred language (e.g., "రేపు వైజాగ్ నుండి హైదరాబాద్ బస్సులు" or "buses from Hyderabad to Vijayawada tomorrow")
-      </p>
+      <p className="max-w-xl text-center text-xs sm:text-sm text-slate-300">{t('voiceHint')}</p>
 
       <button
         onClick={isRecording ? stopVoiceSearch : startVoiceSearch}
@@ -497,10 +567,10 @@ export default function VoiceSearchBar() {
 
       <p className="text-sm font-semibold text-blue-300">
         {isProcessing
-          ? 'Processing your voice request...'
+          ? t('processing')
           : isRecording
           ? '🔴 Recording continuously... Tap button or say "Stop" / "ఆపు" / "रोको" to finish'
-          : 'Tap to Speak'}
+          : t('speakNow')}
       </p>
 
       {transcript && (

@@ -2,8 +2,7 @@
 intent_service.py
 
 Turns a raw transcript into a structured bus-search intent.
-Uses Google Gemini API when available, with a fast local regex fallback
-if GEMINI_API_KEY is missing or the network call fails.
+Uses Google Gemini API when available, with a fast local extraction fallback.
 """
 
 import json
@@ -27,98 +26,163 @@ MODEL = "gemini-1.5-flash"
 SUPPORTED_CODES = ", ".join(LANGUAGES.keys())
 
 CITY_ALIASES = {
-    "vizag": "Visakhapatnam",
-    "visakha": "Visakhapatnam",
-    "visakhapatnam": "Visakhapatnam",
-    "hyd": "Hyderabad",
-    "hyderabad": "Hyderabad",
-    "vja": "Vijayawada",
-    "vijayawada": "Vijayawada",
-    "bezawada": "Vijayawada",
-    "chennai": "Chennai",
-    "madras": "Chennai",
-    "blr": "Bengaluru",
-    "bangalore": "Bengaluru",
-    "bengaluru": "Bengaluru",
-    "tirupati": "Tirupati",
-    "guntur": "Guntur",
-    "rajahmundry": "Rajahmundry",
-    "rajahmundri": "Rajahmundry",
-    "kakinada": "Kakinada",
-    "nellore": "Nellore",
-    "kurnool": "Kurnool",
-    "anantapur": "Anantapur",
-    "warangal": "Warangal",
-    "karimnagar": "Karimnagar",
-    "mumbai": "Mumbai",
-    "bombay": "Mumbai",
-    "pune": "Pune",
-    "delhi": "Delhi",
-    "dilli": "Delhi",
-    "kolkata": "Kolkata",
-    "calcutta": "Kolkata",
-    "kochi": "Kochi",
-    "cochin": "Kochi",
-    "coimbatore": "Coimbatore",
-    "madurai": "Madurai",
-    "mysuru": "Mysuru",
-    "mysore": "Mysuru",
+    # Visakhapatnam
+    "visakhapatnam": "Visakhapatnam", "vizag": "Visakhapatnam", "visakha": "Visakhapatnam",
+    "వైజాగ్": "Visakhapatnam", "విశాఖపట్నం": "Visakhapatnam", "विशाखापट्टनम": "Visakhapatnam",
+    "விசாகப்பட்டினம்": "Visakhapatnam", "ವಿಶಾಖಪಟ್ಟಣ": "Visakhapatnam", "വിശാഖപട്ടണം": "Visakhapatnam",
+    "વિશાખાપટ્ટનમ": "Visakhapatnam", "విశాఖ": "Visakhapatnam",
+
+    # Hyderabad
+    "hyderabad": "Hyderabad", "hyd": "Hyderabad", "హైదరాబాద్": "Hyderabad", "హైదరాబాదు": "Hyderabad",
+    "हैदराबाद": "Hyderabad", "ஹைதராபாத்": "Hyderabad", "ಹೈದರಾಬಾದ್": "Hyderabad", "ഹൈദരാബാദ്": "Hyderabad",
+    "હૈદરાબાદ": "Hyderabad", "হায়দ্রাবাদ": "Hyderabad", "حیدرآباد": "Hyderabad",
+
+    # Vijayawada
+    "vijayawada": "Vijayawada", "vja": "Vijayawada", "bezawada": "Vijayawada",
+    "విజయవాడ": "Vijayawada", "బెజవాడ": "Vijayawada", "विजयवाड़ा": "Vijayawada", "விஜயவாடா": "Vijayawada",
+    "ವಿಜಯವಾಡ": "Vijayawada", "വിജയവാഡ": "Vijayawada", "વિજયવાડા": "Vijayawada",
+
+    # Chennai
+    "chennai": "Chennai", "madras": "Chennai", "చెన్నై": "Chennai", "మద్రాస్": "Chennai",
+    "चेन्नई": "Chennai", "मद्रास": "Chennai", "சென்னை": "Chennai", "மதராஸ்": "Chennai",
+    "ಚೆನ್ನೈ": "Chennai", "ചെന്നൈ": "Chennai", "ચેન્નઈ": "Chennai",
+
+    # Bengaluru
+    "bengaluru": "Bengaluru", "bangalore": "Bengaluru", "blr": "Bengaluru",
+    "బెంగళూరు": "Bengaluru", "బెంగుళూరు": "Bengaluru", "बेंगलुरु": "Bengaluru", "बैंगलोर": "Bengaluru",
+    "பெங்களூரு": "Bengaluru", "ಬೆಂಗಳೂರು": "Bengaluru", "ബംഗളൂരു": "Bengaluru", "બેંગલુરુ": "Bengaluru",
+
+    # Tirupati
+    "tirupati": "Tirupati", "తిరుపతి": "Tirupati", "तिरुपति": "Tirupati", "திருப்பதி": "Tirupati",
+    "ತಿರುಪತಿ": "Tirupati", "തിരുപ്പതി": "Tirupati", "તિરુપતિ": "Tirupati",
+
+    # Guntur
+    "guntur": "Guntur", "గుంటూరు": "Guntur", "गुंटूर": "Guntur", "குண்டூர்": "Guntur",
+    "ಗುಂಟೂರು": "Guntur", "ഗുണ്ടൂർ": "Guntur", "ગુંટૂર": "Guntur",
+
+    # Rajahmundry
+    "rajahmundry": "Rajahmundry", "rajahmundri": "Rajahmundry", "రాజమండ్రి": "Rajahmundry",
+    "राजमुंदरी": "Rajahmundry", "ராஜமுந்திரி": "Rajahmundry", "ರಾಜಮಂಡ್ರಿ": "Rajahmundry",
+    "രാജമണ്ഡ്രി": "Rajahmundry", "રાજામુંડરી": "Rajahmundry",
+
+    # Kakinada
+    "kakinada": "Kakinada", "కాకినాడ": "Kakinada", "काकीनाडा": "Kakinada", "காக்கிநாடா": "Kakinada",
+    "ಕಾಕಿನಾಡ": "Kakinada", "കാക്കിനട": "Kakinada", "કાકીનાડા": "Kakinada",
+
+    # Nellore
+    "nellore": "Nellore", "నెల్లూరు": "Nellore", "नेल्लोर": "Nellore", "நெல்லூர்": "Nellore",
+    "ನೆಲ್ಲೂರು": "Nellore", "നെല്ലൂർ": "Nellore", "નેલ્લોર": "Nellore",
+
+    # Kurnool
+    "kurnool": "Kurnool", "కర్నూలు": "Kurnool", "कुर्नूल": "Kurnool", "கர்நூல்": "Kurnool",
+    "ಕರ್ನೂಲು": "Kurnool", "കർണൂൽ": "Kurnool", "કુર્નૂલ": "Kurnool",
+
+    # Anantapur
+    "anantapur": "Anantapur", "అనంతపురం": "Anantapur", "अनंतपुर": "Anantapur", "அனந்தபூர்": "Anantapur",
+    "ಅನಂತಪುರ": "Anantapur", "അനന്തപൂർ": "Anantapur", "અનંતપુર": "Anantapur",
+
+    # Warangal
+    "warangal": "Warangal", "వరంగల్": "Warangal", "वरंगल": "Warangal", "வரங்கல்": "Warangal",
+    "ವರಂಗಲ್": "Warangal", "വരംഗൽ": "Warangal", "વરંગલ": "Warangal",
+
+    # Karimnagar
+    "karimnagar": "Karimnagar", "కరీంనగర్": "Karimnagar", "करीमनगर": "Karimnagar", "கரீம்நகர்": "Karimnagar",
+    "ಕರೀಂನಗರ": "Karimnagar", "കരീംനഗർ": "Karimnagar", "કરીમનગર": "Karimnagar",
+
+    # Mumbai
+    "mumbai": "Mumbai", "bombay": "Mumbai", "ముంబై": "Mumbai", "బొంబాయి": "Mumbai",
+    "मुंबई": "Mumbai", "बंबई": "Mumbai", "மும்பை": "Mumbai", "ಮುಂಬೈ": "Mumbai",
+    "മുംബൈ": "Mumbai", "મુંબઈ": "Mumbai",
+
+    # Pune
+    "pune": "Pune", "పుణే": "Pune", "పూనే": "Pune", "पुणे": "Pune",
+    "புனே": "Pune", "ಪುಣೆ": "Pune", "പുനെ": "Pune", "પુણે": "Pune",
+
+    # Delhi
+    "delhi": "Delhi", "dilli": "Delhi", "ఢిల్లీ": "Delhi", "ఢిల్లి": "Delhi",
+    "दिल्ली": "Delhi", "दिल्लि": "Delhi", "டெல்லி": "Delhi", "ದೆಹಲಿ": "Delhi",
+    "ഡൽഹി": "Delhi", "દિલ્હી": "Delhi",
+
+    # Kolkata
+    "kolkata": "Kolkata", "calcutta": "Kolkata", "కోల్‌కతా": "Kolkata", "కలకత్తా": "Kolkata",
+    "कोलकाता": "Kolkata", "कलकत्ता": "Kolkata", "கொல்கத்தா": "Kolkata", "ಕೋಲ್ಕತ್ತಾ": "Kolkata",
+    "കൊൽക്കത്ത": "Kolkata", "કોલકાતા": "Kolkata",
+
+    # Kochi
+    "kochi": "Kochi", "cochin": "Kochi", "కొచ్చి": "Kochi", "కోచి": "Kochi",
+    "कोच्चि": "Kochi", "कोचीन": "Kochi", "கொச்சி": "Kochi", "ಕೊಚ್ಚಿ": "Kochi",
+    "കൊച്ചി": "Kochi", "કોચી": "Kochi",
+
+    # Coimbatore
+    "coimbatore": "Coimbatore", "కోయంబత్తూర్": "Coimbatore", "कोयंबटूर": "Coimbatore",
+    "கோயம்புத்தூர்": "Coimbatore", "ಕೊಯಮತ್ತೂರು": "Coimbatore", "കോയമ്പത്തൂർ": "Coimbatore",
+    "કોઈમ્બતૂર": "Coimbatore",
+
+    # Madurai
+    "madurai": "Madurai", "మదురై": "Madurai", "मदुराइ": "Madurai", "मदुरै": "Madurai",
+    "மதுரை": "Madurai", "ಮಧುರೈ": "Madurai", "മധുര": "Madurai", "મદુરાઈ": "Madurai",
+
+    # Mysuru
+    "mysuru": "Mysuru", "mysore": "Mysuru", "మైసూరు": "Mysuru", "మైసూర్": "Mysuru",
+    "मैसूरु": "Mysuru", "मैसूर": "Mysuru", "மைசூரு": "Mysuru", "ಮೈಸೂರು": "Mysuru",
+    "മൈസൂരു": "Mysuru", "મૈસુરુ": "Mysuru",
 }
 
 LANGUAGE_KEYWORD_MAP = {
-    "telugu": "te",
-    "తెలుగు": "te",
-    "hindi": "hi",
-    "हिंदी": "hi",
-    "हिन्दी": "hi",
-    "tamil": "ta",
-    "தமிழ்": "ta",
-    "kannada": "kn",
-    "ಕನ್ನಡ": "kn",
-    "malayalam": "ml",
-    "മലയാളം": "ml",
-    "marathi": "mr",
-    "मराठी": "mr",
-    "gujarati": "gu",
-    "ગુજરાતી": "gu",
-    "bengali": "bn",
-    "বাংলা": "bn",
-    "urdu": "ur",
-    "اردو": "ur",
-    "punjabi": "pa",
-    "ਪੰਜਾਬੀ": "pa",
+    "telugu": "te", "తెలుగు": "te",
+    "hindi": "hi", "हिंदी": "hi", "हिन्दी": "hi",
+    "tamil": "ta", "தமிழ்": "ta",
+    "kannada": "kn", "ಕನ್ನಡ": "kn",
+    "malayalam": "ml", "മലയാളം": "ml",
+    "marathi": "mr", "मराठी": "mr",
+    "gujarati": "gu", "ગુજરાતી": "gu",
+    "bengali": "bn", "বাংলা": "bn",
+    "urdu": "ur", "اردو": "ur",
+    "punjabi": "pa", "ਪੰਜਾਬੀ": "pa",
     "english": "en",
 }
 
 CLARIFICATIONS = {
-    "te": "దయచేసి మీరు బయలుదేరే నగరం మరియు చేరుకునే నగరాన్ని చెప్పండి. (ఉదా: విశాఖపట్నం నుండి హైదరాబాద్)",
-    "hi": "कृपया बताएं कि आप किस शहर से किस शहर जाना चाहते हैं। (जैसे: दिल्ली से जयपुर)",
+    "te": "దయచేసి బయలుదేరే మరియు చేరుకునే నగరాన్ని చెప్పండి (ఉదా: వైజాగ్ నుండి హైదరాబాద్)",
+    "hi": "कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: दिल्ली से जयपुर)",
     "ta": "தயவுசெய்து நீங்கள் புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள்.",
-    "kn": "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಪ್ರಯಾಣದ ಆರಂಭಿಕ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ.",
-    "ml": "ദയവായി താങ്കളുടെ യാത്ര പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക.",
-    "mr": "कृपया तुमचे प्रस्थान आणि गंतव्य शहर सांगा.",
-    "gu": "કૃપા કરીને તમારું ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.",
-    "bn": "অনুগ্রহ করে আপনার যাত্রার শহর এবং গন্তব্য জানান।",
-    "ur": "براہ کرم اپنا روانگی کا شہر اور منزل بتائیں۔",
-    "en": "Please specify your departure city and destination city. (e.g. Hyderabad to Vijayawada)",
+    "kn": "ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ.",
+    "ml": "ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക.",
+    "mr": "कृपया प्रस्थान आणि गंतव्य शहर सांगा.",
+    "gu": "કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.",
+    "bn": "অনুগ্রহ করে যাত্রার শহর এবং গন্তব্য জানান।",
+    "ur": "براہ کرم روانگی کا شہر اور منزل بتائیں۔",
+    "en": "Please specify your origin and destination cities (e.g., Hyderabad to Vijayawada)",
 }
 
 
 def _local_intent_extraction(transcript: str, selected_lang: str | None, detected_lang: str | None) -> dict:
-    text_lower = transcript.lower()
+    text_lower = transcript.lower().strip()
     lang = selected_lang or detected_lang or "en"
 
-    # Check for explicit language switch request in voice transcript
+    # Auto-detect language script
+    if re.search(r'[\u0C00-\u0C7F]', transcript):
+        lang = "te"
+    elif re.search(r'[\u0900-\u097F]', transcript):
+        lang = "hi"
+    elif re.search(r'[\u0B80-\u0BFF]', transcript):
+        lang = "ta"
+    elif re.search(r'[\u0C80-\u0CFF]', transcript):
+        lang = "kn"
+    elif re.search(r'[\u0D00-\u0D7F]', transcript):
+        lang = "ml"
+    elif re.search(r'[\u0A80-\u0AFF]', transcript):
+        lang = "gu"
+
     for kw, lcode in LANGUAGE_KEYWORD_MAP.items():
-        if f"change language to {kw}" in text_lower or f"switch to {kw}" in text_lower or f"speak in {kw}" in text_lower or kw in text_lower:
-            if "language" in text_lower or "भाषा" in text_lower or "భాష" in text_lower or "switch" in text_lower:
-                lang = lcode
+        if kw in text_lower:
+            lang = lcode
+            break
 
     found_cities = []
     for word, city in CITY_ALIASES.items():
-        if re.search(r'\b' + re.escape(word) + r'\b', text_lower):
-            if city not in found_cities:
-                found_cities.append(city)
+        if word.lower() in text_lower and city not in found_cities:
+            found_cities.append(city)
 
     origin = None
     destination = None
@@ -129,11 +193,10 @@ def _local_intent_extraction(transcript: str, selected_lang: str | None, detecte
     elif len(found_cities) == 1:
         destination = found_cities[0]
 
-    # Date parsing
     today_str = datetime.date.today().isoformat()
     tomorrow_str = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
     date_val = today_str
-    if "tomorrow" in text_lower or "రేపు" in text_lower or "कल" in text_lower or "நாளை" in text_lower or "ನಾಳೆ" in text_lower:
+    if any(k in text_lower for k in ["tomorrow", "రేపు", "कल", "நாளை", "ನಾಳೆ", "നാളെ"]):
         date_val = tomorrow_str
 
     clarification = None
@@ -156,14 +219,11 @@ def extract_bus_intent(
     user_selected_language: str | None = None,
     valid_cities: list[str] | None = None,
 ) -> dict:
-    # Perform fast local extraction immediately
     local_intent = _local_intent_extraction(transcript, user_selected_language, detected_language_hint)
     
-    # If local extraction found origin + destination, return instantly for 0.01s speed!
     if local_intent.get("origin") and local_intent.get("destination"):
         return local_intent
 
-    # Otherwise try Gemini if key exists
     if genai and GEMINI_KEY:
         try:
             lang = user_selected_language or detected_language_hint or "en"
@@ -204,25 +264,28 @@ def generate_confirmation(intent: dict) -> str:
     lang = intent.get("language", "en")
     origin = intent.get("origin", "")
     destination = intent.get("destination", "")
-    date_val = intent.get("date", "today")
 
     if lang == "te":
-        return f"{origin} నుండి {destination} కు ప్రయాణించే బస్సుల వివరాలు చూపిస్తున్నాము."
+        return f"మీకు {origin} నుండి {destination} వెళ్లే బస్సులను చూపిస్తున్నాను"
     elif lang == "hi":
-        return f"{origin} से {destination} के लिए बसें खोजी जा रही हैं।"
+        return f"हम आपको {origin} से {destination} जाने वाली बसें दिखा रहे हैं"
     elif lang == "ta":
-        return f"{origin} முதல் {destination} வரையிலான பேருந்துகளைத் தேடுகிறோம்."
+        return f"நாங்கள் உங்களுக்கு {origin} இலிருந்து {destination} செல்லும் பேருந்துகளைக் காட்டுகிறோம்"
     elif lang == "kn":
-        return f"{origin} ದಿಂದ {destination} ಗೆ ಬಸ್‌ಗಳನ್ನು ಹುಡುಕುತ್ತಿದ್ದೇವೆ."
+        return f"ನಾವು ನಿಮಗೆ {origin} ದಿಂದ {destination} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ"
     elif lang == "ml":
-        return f"{origin} ൽ നിന്ന് {destination} ലേക്കുള്ള ബസുകൾ കാണിക്കുന്നു."
+        return f"ഞങ്ങൾ നിങ്ങൾക്ക് {origin} ൽ നിന്ന് {destination} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു"
     elif lang == "mr":
-        return f"{origin} ते {destination} साठी बस शोधत आहोत."
+        return f"आम्ही तुम्हाला {origin} ते {destination} जाणाऱ्या बसेस दाखवत आहोत"
     elif lang == "gu":
-        return f"{origin} થી {destination} માટેની બસો શોધી રહ્યા છીએ."
+        return f"અમે તમને {origin} થી {destination} જતી બસો બતાવી રહ્યા છીએ"
     elif lang == "bn":
-        return f"{origin} থেকে {destination} এর জন্য বাস খোঁজা হচ্ছে।"
+        return f"আমরা আপনাকে {origin} থেকে {destination} যাওয়ার বাসগুলো দেখাচ্ছি"
     elif lang == "ur":
-        return f"{origin} سے {destination} کے لیے بسیں تلاش کی جا رہی ہیں۔"
+        return f"ہم آپ کو {origin} سے {destination} جانے والی بسیں دکھا رہے ہیں"
+    elif lang == "pa":
+        return f"ਅਸੀਂ ਤੁਹਾਨੂੰ {origin} ਤੋਂ {destination} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ"
+    elif lang == "or":
+        return f"ଆମେ ଆପଣଙ୍କୁ {origin} ରୁ {destination} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ"
 
-    return f"Searching buses from {origin} to {destination}."
+    return f"Showing you buses from {origin} to {destination}"
