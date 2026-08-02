@@ -1,4 +1,4 @@
-import { CITY_ALIASES } from '../components/VoiceSearchBar';
+import { CITY_ALIASES } from './cities';
 import { CITIES } from '../components/SearchForm';
 import { BreakJourneyRoute } from './breakJourneyService';
 import { CITY_TRANSLATIONS } from '../context/LanguageContext';
@@ -306,6 +306,101 @@ const TODAY_KEYWORDS = [
   'today', 'ఈరోజు', 'ఇవాళ', 'आज', 'இன்று', 'ಇಂದು', 'ഇന്ന്', 'আজ', 'આજે', 'آج', 'ਅੱਜ', 'ଆଜି',
 ];
 
+// Weekday names -> 0=Sun..6=Sat. English + te/hi/ta/kn/ml native names (the languages
+// with the strongest voice support); numeric/relative dates cover the remaining langs.
+const WEEKDAYS: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+  ఆదివారం: 0, సోమవారం: 1, మంగళవారం: 2, బుధవారం: 3, గురువారం: 4, శుక్రవారం: 5, శనివారం: 6,
+  रविवार: 0, सोमवार: 1, मंगलवार: 2, बुधवार: 3, गुरुवार: 4, शुक्रवार: 5, शनिवार: 6,
+  ஞாயிறு: 0, திங்கள்: 1, செவ்வாய்: 2, புதன்: 3, வியாழன்: 4, வெள்ளி: 5, சனி: 6,
+  ಭಾನುವಾರ: 0, ಸೋಮವಾರ: 1, ಮಂಗಳವಾರ: 2, ಬುಧವಾರ: 3, ಗುರುವಾರ: 4, ಶುಕ್ರವಾರ: 5, ಶನಿವಾರ: 6,
+  ഞായർ: 0, തിങ്കൾ: 1, ചൊവ്വ: 2, ബുധൻ: 3, വ്യാഴം: 4, വെള്ളി: 5, ശനി: 6,
+};
+
+// Month names -> 1..12. English (full/abbrev) + te/hi native transliterations.
+const MONTHS_MAP: Record<string, number> = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4, may: 5,
+  june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8, september: 9, sept: 9, sep: 9,
+  october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+  జనవరి: 1, ఫిబ్రవరి: 2, మార్చి: 3, ఏప్రిల్: 4, మే: 5, జూన్: 6, జూలై: 7, ఆగస్టు: 8, సెప్టెంబర్: 9, అక్టోబర్: 10, నవంబర్: 11, డిసెంబర్: 12,
+  जनवरी: 1, फरवरी: 2, मार्च: 3, अप्रैल: 4, मई: 5, जून: 6, जुलाई: 7, अगस्त: 8, सितंबर: 9, अक्टूबर: 10, नवंबर: 11, दिसंबर: 12,
+};
+
+function toIsoDate(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// "next Friday" / "శుక్రవారం" -> the upcoming occurrence of that weekday (today if it
+// is that weekday). Returns null if no weekday word is present.
+function parseWeekday(lower: string): string | null {
+  for (const [name, dow] of Object.entries(WEEKDAYS)) {
+    if (lower.includes(name)) {
+      const now = new Date();
+      const diff = ((dow - now.getDay()) % 7 + 7) % 7;
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+      return toIsoDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+  }
+  return null;
+}
+
+// "5th August" / "August 5" / "5 ఆగస్టు" / "5/8" / "05-08-2026" -> ISO date (next
+// year if the day/month is already in the past). Returns null if no explicit date.
+function parseExplicitDate(lower: string): string | null {
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Day number + month name (day may come before or after the month word).
+  let monthNum: number | null = null;
+  for (const [name, mn] of Object.entries(MONTHS_MAP)) {
+    // For ASCII month names use word boundaries (so "may" the modal verb, or "aug"
+    // inside another word, does not false-match); native month names use includes.
+    const isAsciiMonth = /^[a-z]+$/.test(name);
+    const found = isAsciiMonth
+      ? new RegExp(`(^|[^a-z])${name}([^a-z]|$)`).test(lower)
+      : lower.includes(name);
+    if (found) {
+      monthNum = mn;
+      break;
+    }
+  }
+  if (monthNum) {
+    const dayMatch = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/);
+    if (dayMatch) {
+      const day = parseInt(dayMatch[1], 10);
+      if (day >= 1 && day <= 31) {
+        const yearMatch = lower.match(/\b(20\d{2})\b/);
+        let year = yearMatch ? parseInt(yearMatch[1], 10) : now.getFullYear();
+        let candidate = new Date(year, monthNum - 1, day);
+        if (!yearMatch && candidate < todayMidnight) {
+          year += 1;
+          candidate = new Date(year, monthNum - 1, day);
+        }
+        return toIsoDate(candidate.getFullYear(), candidate.getMonth() + 1, candidate.getDate());
+      }
+    }
+  }
+
+  // Numeric DD/MM or DD-MM(-YYYY) (Indian day-first convention).
+  const numMatch = lower.match(/\b(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?\b/);
+  if (numMatch) {
+    const day = parseInt(numMatch[1], 10);
+    const mon = parseInt(numMatch[2], 10);
+    if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12) {
+      let year = numMatch[3] ? parseInt(numMatch[3], 10) : now.getFullYear();
+      if (year < 100) year += 2000;
+      let candidate = new Date(year, mon - 1, day);
+      if (!numMatch[3] && candidate < todayMidnight) {
+        year += 1;
+        candidate = new Date(year, mon - 1, day);
+      }
+      return toIsoDate(candidate.getFullYear(), candidate.getMonth() + 1, candidate.getDate());
+    }
+  }
+
+  return null;
+}
+
 // Continuous natural sentence entity extraction for Date, Time, Bus Type & Seat Type.
 // `date` is null when the user did not mention a date, so callers can preserve any
 // date already captured in the session instead of overwriting it with today.
@@ -324,6 +419,10 @@ export function extractContinuousPreferences(text: string): {
   if (DAY_AFTER_KEYWORDS.some((k) => lower.includes(k))) date = dayAfter;
   else if (TOMORROW_KEYWORDS.some((k) => lower.includes(k))) date = tomorrow;
   else if (TODAY_KEYWORDS.some((k) => lower.includes(k))) date = today;
+  // Explicit ("5th August", "5 ఆగస్టు", "5/8") and weekday ("Friday", "శుక్రవారం")
+  // dates, only when no relative keyword was spoken.
+  if (!date) date = parseExplicitDate(lower);
+  if (!date) date = parseWeekday(lower);
 
   let time: string | null = null;
   if (lower.includes('evening') || lower.includes('సాయంత్రం') || lower.includes('వైകുന്നేరం')) time = 'Evening (after 6 PM)';

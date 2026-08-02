@@ -17,108 +17,9 @@ import {
   type SpeechRecognitionErrorEvent,
 } from '../lib/speech';
 
-export const CITY_ALIASES: Record<string, string> = {
-  // Visakhapatnam
-  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', visakha: 'Visakhapatnam', visag: 'Visakhapatnam', vizakhapatnam: 'Visakhapatnam', vishakhapatnam: 'Visakhapatnam', vishakapatnam: 'Visakhapatnam',
-  వైజాగ్: 'Visakhapatnam', విశాఖపట్నం: 'Visakhapatnam', विशाखापट्टनम: 'Visakhapatnam',
-  விசாகப்பட்டினம்: 'Visakhapatnam', ವಿಶಾಖಪಟ್ಟಣ: 'Visakhapatnam', വിശാഖപട്ടണം: 'Visakhapatnam',
-  વિશાખાપટ્ટનમ: 'Visakhapatnam', విశాఖ: 'Visakhapatnam',
-
-  // Hyderabad
-  hyderabad: 'Hyderabad', hyd: 'Hyderabad', హైదరాబాద్: 'Hyderabad', హైదరాబాదు: 'Hyderabad',
-  हैदराबाद: 'Hyderabad', ஹைதராபாத்: 'Hyderabad', ಹೈದರಾಬಾದ್: 'Hyderabad', ഹൈദരാബാദ്: 'Hyderabad',
-  હૈદરાબાદ: 'Hyderabad', হায়দ্রাবাদ: 'Hyderabad', حیدرآباد: 'Hyderabad',
-
-  // Vijayawada
-  vijayawada: 'Vijayawada', vijawada: 'Vijayawada', vja: 'Vijayawada', bezawada: 'Vijayawada', vijaywada: 'Vijayawada',
-  విజయవాడ: 'Vijayawada', విజవాడ: 'Vijayawada', బెజవాడ: 'Vijayawada', विजयवाड़ा: 'Vijayawada', विजवाडा: 'Vijayawada', விஜயவாடா: 'Vijayawada',
-  ವಿಜಯವಾಡ: 'Vijayawada', വിജയവാഡ: 'Vijayawada', વિજયવાડા: 'Vijayawada',
-
-  // Chennai
-  chennai: 'Chennai', madras: 'Chennai', చెన్నై: 'Chennai', మద్రాస్: 'Chennai',
-  चेन्नई: 'Chennai', मद्रास: 'Chennai', சென்னை: 'Chennai', மதராஸ்: 'Chennai',
-  ಚೆನ್ನೈ: 'Chennai', ചെന്നൈ: 'Chennai', ચેન્નઈ: 'Chennai',
-
-  // Bengaluru
-  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', banglore: 'Bengaluru', blr: 'Bengaluru',
-  బెంగళూరు: 'Bengaluru', బెంగుళూరు: 'Bengaluru', बेंगलुरु: 'Bengaluru', बैंगलोर: 'Bengaluru',
-  பெங்களூரு: 'Bengaluru', ಬೆಂಗಳೂರು: 'Bengaluru', ബംഗളൂരു: 'Bengaluru', બેંગલુરુ: 'Bengaluru',
-
-  // Tirupati
-  tirupati: 'Tirupati', తిరుపతి: 'Tirupati', तिरुपति: 'Tirupati', திருப்பதி: 'Tirupati',
-  ತಿರುಪತಿ: 'Tirupati', തിരുപ്പതി: 'Tirupati', તિરુપતિ: 'Tirupati',
-
-  // Guntur
-  guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', గుండూర్: 'Guntur',
-  ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
-
-  // Rajahmundry
-  rajahmundry: 'Rajahmundry', rajahmundri: 'Rajahmundry', రాజమండ్రి: 'Rajahmundry',
-  राजमुंदरी: 'Rajahmundry', ராஜமுந்திரி: 'Rajahmundry', ರಾಜಮಂಡ್ರಿ: 'Rajahmundry',
-  രാജമണ്ഡ്രി: 'Rajahmundry', રાજામુંડરી: 'Rajahmundry',
-
-  // Kakinada
-  kakinada: 'Kakinada', కాకినాడ: 'Kakinada', काकीनाडा: 'Kakinada', காక్కిநாடா: 'Kakinada',
-  ಕಾಕಿನಾಡ: 'Kakinada', കാക്കിനട: 'Kakinada', કાકીનાડા: 'Kakinada',
-
-  // Nellore
-  nellore: 'Nellore', నెల్లూరు: 'Nellore', नेल्लोर: 'Nellore', நெல்லூர்: 'Nellore',
-  ನೆಲ್ಲೂರು: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
-
-  // Kurnool
-  kurnool: 'Kurnool', కర్నూలు: 'Kurnool', कुर्नूल: 'Kurnool', கர்நூல்: 'Kurnool',
-  ಕರ್ನೂಲು: 'Kurnool', കർണൂൽ: 'Kurnool', કુર્નૂલ: 'Kurnool',
-
-  // Anantapur
-  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தபூர்: 'Anantapur',
-  ಅನಂತಪುರ: 'Anantapur', അനന്തപൂർ: 'Anantapur', અનંતપુર: 'Anantapur',
-
-  // Warangal
-  warangal: 'Warangal', వరంగల్: 'Warangal', वरंगल: 'Warangal', வரங்கல்: 'Warangal',
-  ವರಂಗಲ್: 'Warangal', വരംഗൽ: 'Warangal', વરંગલ: 'Warangal',
-
-  // Karimnagar
-  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar',
-  కరీంనగర: 'Karimnagar', કરીમનગર: 'Karimnagar',
-
-  // Mumbai
-  mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
-  मुंबई: 'Mumbai', बंबई: 'Mumbai', மும்பை: 'Mumbai', ಮುಂಬೈ: 'Mumbai',
-  മുംബൈ: 'Mumbai', മુંબઈ: 'Mumbai',
-
-  // Pune
-  pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
-  புனே: 'Pune', పుಣೆ: 'Pune', పునె: 'Pune', పుણે: 'Pune',
-
-  // Delhi
-  delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
-  दिल्ली: 'Delhi', दिल्लि: 'Delhi', டெல்லி: 'Delhi', దెహలి: 'Delhi',
-  ഡൽഹി: 'Delhi', દિલ્હી: 'Delhi',
-
-  // Kolkata
-  kolkata: 'Kolkata', calcutta: 'Kolkata', కోల్‌కతా: 'Kolkata', కలకత్తా: 'Kolkata',
-  कोलकाता: 'Kolkata', कलकत्ता: 'Kolkata', கொல்கத்தா: 'Kolkata',
-  കൊൽക്കത്ത: 'Kolkata', કોલકાતા: 'Kolkata',
-
-  // Kochi
-  kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
-  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi',
-  കൊച്ചി: 'Kochi', കോചീ: 'Kochi',
-
-  // Coimbatore
-  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
-  கோயம்புத்தூர்: 'Coimbatore', ಕೋಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
-  કોઈમ્બતૂર: 'Coimbatore',
-
-  // Madurai
-  madurai: 'Madurai', మదురై: 'Madurai', मदेरै: 'Madurai', मदुरै: 'Madurai',
-  மதுரை: 'Madurai', ಮಧುರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
-
-  // Mysuru
-  mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
-  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூரு: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
-  മൈസൂരു: 'Mysuru', മૈસુરુ: 'Mysuru',
-};
+// CITY_ALIASES now lives in ../lib/cities to avoid a circular import; re-exported
+// here so existing imports from this module keep working.
+export { CITY_ALIASES } from '../lib/cities';
 
 const CLARIFICATIONS: Record<string, string> = {
   te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: విజయవాడ నుండి హైదరాబాద్).',
@@ -148,6 +49,23 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   pa: (o, d) => `ਠੀਕ ਹੈ! ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ।`,
   or: (o, d) => `ଠିକ୍ ଅଛି! ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ।`,
   en: (o, d) => `Got it! You're planning to travel from ${o} to ${d}.`,
+};
+
+// "Server is waking up — using device speech meanwhile" in all 12 languages, shown
+// while the free-tier backend cold-starts (ISSUE 3).
+const SERVER_WAKING_MSG: Record<string, string> = {
+  te: '⏳ సర్వర్ మేల్కొంటోంది… ప్రస్తుతం మీ ఫోన్ స్పీచ్ ఉపయోగిస్తున్నాము.',
+  hi: '⏳ सर्वर जाग रहा है… तब तक डिवाइस स्पीच का उपयोग हो रहा है।',
+  ta: '⏳ சர்வர் விழிக்கிறது… தற்போது சாதன பேச்சு பயன்படுத்தப்படுகிறது.',
+  kn: '⏳ ಸರ್ವರ್ ಎಚ್ಚರಗೊಳ್ಳುತ್ತಿದೆ… ಸದ್ಯಕ್ಕೆ ಸಾಧನದ ಧ್ವನಿ ಬಳಸಲಾಗುತ್ತಿದೆ.',
+  ml: '⏳ സെർവർ ഉണരുന്നു… തൽക്കാലം ഉപകരണ സ്പീച്ച് ഉപയോഗിക്കുന്നു.',
+  mr: '⏳ सर्व्हर जागत आहे… तोपर्यंत डिव्हाइस स्पीच वापरत आहोत.',
+  gu: '⏳ સર્વર જાગી રહ્યું છે… ત્યાં સુધી ડિવાઇસ સ્પીચ વાપરીએ છીએ.',
+  bn: '⏳ সার্ভার জেগে উঠছে… আপাতত ডিভাইস স্পিচ ব্যবহার করা হচ্ছে।',
+  ur: '⏳ سرور بیدار ہو رہا ہے… فی الحال ڈیوائس اسپیچ استعمال ہو رہی ہے۔',
+  pa: '⏳ ਸਰਵਰ ਜਾਗ ਰਿਹਾ ਹੈ… ਤਦ ਤੱਕ ਡਿਵਾਈਸ ਸਪੀਚ ਵਰਤ ਰਹੇ ਹਾਂ।',
+  or: '⏳ ସର୍ଭର ଜାଗୁଛି… ବର୍ତ୍ତମାନ ଡିଭାଇସ୍ ସ୍ପିଚ୍ ବ୍ୟବହାର ହେଉଛି।',
+  en: '⏳ Server is waking up… using device speech meanwhile.',
 };
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -200,6 +118,8 @@ export default function VoiceSearchBar() {
   const [debugEntities, setDebugEntities] = useState<DebugEntities>({});
   const [debugOtaUrls, setDebugOtaUrls] = useState<Record<string, string>>({});
   const [ttsInfo, setTtsInfo] = useState<SpeakResult | null>(null);
+  const [sttEngine, setSttEngine] = useState<string>('—');
+  const [serverStatus, setServerStatus] = useState<'idle' | 'waking' | 'ready' | 'offline'>('idle');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -207,6 +127,9 @@ export default function VoiceSearchBar() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const fullTranscriptRef = useRef<string>('');
+  // Set true when the user intentionally stops, so recorder.onstop knows to process
+  // the captured audio (isRecordingRef is already false by the time onstop fires).
+  const shouldProcessRef = useRef<boolean>(false);
 
   function addPipelineLog(stage: string, detail: string, type: 'info' | 'success' | 'warn' | 'error' = 'info') {
     const newLog: PipelineLog = {
@@ -234,11 +157,27 @@ export default function VoiceSearchBar() {
     setSpokenText('');
     setTranscript('');
     fullTranscriptRef.current = '';
+    shouldProcessRef.current = false;
     setNeedsClarification(false);
     isRecordingRef.current = true;
     setIsRecording(true);
 
     addPipelineLog('1. Mic Capture', 'Microphone recording initialized. Capturing audio stream...', 'info');
+
+    // Warm up the free-tier Render backend (it sleeps when idle, 30-60s cold start) so
+    // Whisper STT is ready by the time recording stops. Meanwhile the browser Web Speech
+    // preview gives instant recognition, so the pipeline works even while the server is cold.
+    setServerStatus('waking');
+    setSttEngine('Browser Web Speech (warming backend)');
+    void fetch(`${BACKEND_URL}/health`)
+      .then((r) => {
+        setServerStatus(r.ok ? 'ready' : 'offline');
+        addPipelineLog('0. Backend Warm-up', r.ok ? 'Backend /health OK — Whisper ready.' : 'Backend /health not OK.', r.ok ? 'success' : 'warn');
+      })
+      .catch(() => {
+        setServerStatus('offline');
+        addPipelineLog('0. Backend Warm-up', 'Backend unreachable — will use browser Web Speech for STT.', 'warn');
+      });
 
     // First preference: Direct MediaRecorder Audio Stream for robust backend Whisper processing
     try {
@@ -256,7 +195,8 @@ export default function VoiceSearchBar() {
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         mediaStreamRef.current = null;
-        if (isRecordingRef.current) {
+        if (shouldProcessRef.current) {
+          shouldProcessRef.current = false;
           void handleAudioUpload();
         }
       };
@@ -325,6 +265,7 @@ export default function VoiceSearchBar() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         addPipelineLog('2. Stop Recording', 'Stopping MediaRecorder. Preparing audio blob for upload...', 'info');
+        shouldProcessRef.current = true; // tell onstop to process the captured audio
         mediaRecorderRef.current.stop();
       } catch {
         /* recorder already stopped */
@@ -527,33 +468,60 @@ export default function VoiceSearchBar() {
     formData.append('selected_language', currentLanguage);
     formData.append('valid_cities', CITIES.join(','));
 
+    // 10s timeout so a cold/sleeping backend never hangs the pipeline.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const preview = () => fullTranscriptRef.current || transcript;
+
     try {
-      addPipelineLog('4. POST Upload', `Uploading audio blob to backend ${BACKEND_URL}/voice-search...`, 'info');
+      addPipelineLog('4. POST Upload', `Uploading audio to backend ${BACKEND_URL}/voice-search (10s timeout)...`, 'info');
       const res = await fetch(`${BACKEND_URL}/voice-search`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+      window.clearTimeout(timeoutId);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-      addPipelineLog('5. Whisper Result', `Backend Whisper STT Response: "${data.transcript || ''}"`, data.transcript ? 'success' : 'warn');
+      setServerStatus('ready');
+      addPipelineLog('5. Whisper Result', `Backend Whisper STT: "${data.transcript || ''}"`, data.transcript ? 'success' : 'warn');
 
-      if (!data.transcript || !data.transcript.trim()) {
-        handleEmptyTranscriptGuard();
+      const backendText = (data.transcript || '').trim();
+      if (backendText) {
+        // Backend for Whisper STT only; robust client-side NLU runs on its transcript
+        // (native-script city extraction, spoken-city/date override, form auto-fill,
+        // language-correct TTS) — identical to the live-preview path.
+        setSttEngine('Backend Whisper');
+        processTextDirectly(backendText);
         return;
       }
-
-      // Use the backend purely for Whisper STT, then run the robust client-side NLU on
-      // its transcript. This keeps native-script city extraction, spoken-city override,
-      // form auto-fill, and language-correct TTS identical to the live-preview path
-      // (and avoids the backend's weaker single-pass intent extraction).
-      processTextDirectly(data.transcript);
+      // Backend heard nothing — fall back to the browser Web Speech transcript.
+      const pv = preview();
+      if (pv && pv.trim()) {
+        setSttEngine('Browser Web Speech (backend empty)');
+        addPipelineLog('STT Fallback', 'Backend transcript empty — using browser Web Speech transcript.', 'warn');
+        processTextDirectly(pv);
+      } else {
+        handleEmptyTranscriptGuard();
+      }
     } catch (err) {
-      addPipelineLog('Backend Fallback', `Backend Whisper upload failed (${err}). Parsing local transcript preview...`, 'warn');
-      const previewText = fullTranscriptRef.current || transcript;
-      if (previewText && previewText.trim().length > 0) {
-        processTextDirectly(previewText);
+      window.clearTimeout(timeoutId);
+      const aborted = err instanceof DOMException && err.name === 'AbortError';
+      if (aborted) setServerStatus('waking');
+      addPipelineLog(
+        'Backend Fallback',
+        aborted
+          ? 'Backend timed out (10s — likely cold start). Using browser Web Speech transcript.'
+          : `Backend upload failed (${err}). Using browser Web Speech transcript.`,
+        'warn'
+      );
+      // Never end with no transcript and no message.
+      const pv = preview();
+      if (pv && pv.trim().length > 0) {
+        setSttEngine('Browser Web Speech (backend timeout/fail)');
+        processTextDirectly(pv);
       } else {
         handleEmptyTranscriptGuard();
       }
@@ -634,6 +602,12 @@ export default function VoiceSearchBar() {
           : t('speakNow')}
       </p>
 
+      {serverStatus === 'waking' && (isRecording || isProcessing) && (
+        <div className="rounded-lg bg-amber-500/15 border border-amber-500/30 px-4 py-2 text-xs font-semibold text-amber-300 text-center max-w-xl">
+          {SERVER_WAKING_MSG[currentLanguage] || SERVER_WAKING_MSG.en}
+        </div>
+      )}
+
       {transcript && (
         <div className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs sm:text-sm italic text-blue-200 max-w-2xl text-center">
           <span>"{transcript}"</span>
@@ -692,10 +666,36 @@ export default function VoiceSearchBar() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
             <div className="bg-white/5 p-2 rounded border border-white/10">
               <span className="text-slate-400 block">Travel Date:</span>
               <span className="font-bold text-blue-300">{session.date || '—'}</span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Backend Status:</span>
+              <span
+                className={`font-bold ${
+                  serverStatus === 'ready'
+                    ? 'text-emerald-300'
+                    : serverStatus === 'waking'
+                    ? 'text-amber-300'
+                    : serverStatus === 'offline'
+                    ? 'text-red-300'
+                    : 'text-slate-400'
+                }`}
+              >
+                {serverStatus === 'ready'
+                  ? '🟢 ready'
+                  : serverStatus === 'waking'
+                  ? '⏳ waking'
+                  : serverStatus === 'offline'
+                  ? '🔴 offline'
+                  : 'idle'}
+              </span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">STT Engine:</span>
+              <span className="font-bold text-cyan-300">{sttEngine}</span>
             </div>
             <div className="bg-white/5 p-2 rounded border border-white/10">
               <span className="text-slate-400 block">TTS Engine / Voice:</span>

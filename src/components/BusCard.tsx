@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Star, Clock, Users, Snowflake, Fan, ExternalLink } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import { getSessionId } from '../lib/session';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
-import { buildOtaDeepLink, OTA_NAMES } from '../lib/ota';
+import { buildOtaDeepLink, OTA_NAMES, otaSupportsPrefill, getOtaToastMessage } from '../lib/ota';
 
 interface BusCardProps {
   listing: BusListingWithRoute;
@@ -25,24 +27,40 @@ export default function BusCard({ listing, index }: BusCardProps) {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { session } = useSearch();
+  const { currentLanguage } = useLanguage();
+  const [toast, setToast] = useState<string | null>(null);
 
   const searchOrigin = searchParams.get('origin') || session.source || undefined;
   const searchDestination = searchParams.get('destination') || session.destination || undefined;
   const searchDate = searchParams.get('date') || session.date || undefined;
 
-  const handleDirectOtaRedirect = async () => {
+  const handleDirectOtaRedirect = () => {
     const deepLink = buildOtaDeepLink(listing, searchOrigin, searchDestination, searchDate);
-    try {
-      await supabase.from('click_logs').insert({
+    // Open first (keeps the click's user-gesture so popup blockers allow it), then log.
+    window.open(deepLink, '_blank', 'noopener,noreferrer');
+    // OTAs without URL prefill (Paytm): tell the user what route/date to enter.
+    if (!otaSupportsPrefill(listing.ota_source)) {
+      setToast(
+        getOtaToastMessage(
+          currentLanguage,
+          searchOrigin || 'Visakhapatnam',
+          searchDestination || 'Hyderabad',
+          searchDate || new Date().toISOString().split('T')[0]
+        )
+      );
+      window.setTimeout(() => setToast(null), 7000);
+    }
+    void supabase
+      .from('click_logs')
+      .insert({
         user_id: user?.id ?? null,
         listing_id: listing.id,
         ota_source: listing.ota_source,
         session_id: getSessionId(),
+      })
+      .then(undefined, () => {
+        /* click logging is best-effort */
       });
-    } catch {
-      /* click logging is best-effort */
-    }
-    window.open(deepLink, '_blank', 'noopener,noreferrer');
   };
 
   const formatDuration = (mins: number) => {
@@ -125,6 +143,14 @@ export default function BusCard({ listing, index }: BusCardProps) {
           </button>
         </div>
       </div>
+
+      {/* Toast for prefill-impossible OTAs (e.g. Paytm) — tells the user, in their
+          language, exactly which route/date to enter on the opened site. */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl border border-white/10 max-w-[92vw] text-center">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
