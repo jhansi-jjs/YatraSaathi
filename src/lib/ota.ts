@@ -30,7 +30,7 @@ export function parseDateComponents(dateStr: string): { day: string; monthName: 
   return { day, monthName, monthNum, year };
 }
 
-// OTA Adapter Architecture supporting arbitrary OTA providers
+// Universal OTA Adapter Architecture supporting arbitrary OTA providers
 export const OTA_ADAPTERS: Record<string, OtaAdapter> = {
   redBus: {
     id: 'redBus',

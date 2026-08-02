@@ -27,6 +27,18 @@ export interface ConversationState {
   confidence: 'high' | 'medium' | 'low';
 }
 
+export interface StructuredAiIntent {
+  language: string;
+  source: string | null;
+  destination: string | null;
+  date: string | null;
+  time: string | null;
+  seat_type: string | null;
+  bus_type: string | null;
+  budget: string | null;
+  confidence: number;
+}
+
 const BOARDING_POINTS: Record<string, string[]> = {
   Visakhapatnam: ['RTC Complex', 'Maddilapalem', 'Gajuwaka', 'NAD Junction'],
   Hyderabad: ['MGBS', 'Lakdikapul', 'Ameerpet', 'Kukatpally', 'Gachibowli'],
@@ -80,7 +92,7 @@ export function detectLanguageFromText(text: string, currentLang: string): strin
   return currentLang;
 }
 
-// Advanced Travel-Aware N-Gram & Fuzzy City Normalizer
+// RapidFuzz & N-Gram City Normalizer matching strictly against CITIES dropdown dataset
 export function extractCitiesFromInput(text: string): { cities: string[]; confidence: 'high' | 'medium' | 'low'; lowConfCity?: string } {
   const lower = text.toLowerCase().trim();
   const words = lower.split(/[\s,.-]+/);
@@ -168,7 +180,7 @@ export function extractContinuousPreferences(text: string): {
   }
 
   let time: string | null = null;
-  if (lower.includes('evening') || lower.includes('सायंकाळ') || lower.includes('సాయంత్రం') || lower.includes('വൈകുന്നേരം')) time = 'Evening (after 6 PM)';
+  if (lower.includes('evening') || lower.includes('సాయంత్రం') || lower.includes('వైകുന്നేరం')) time = 'Evening (after 6 PM)';
   else if (lower.includes('morning') || lower.includes('ఉదయం') || lower.includes('सुबह') || lower.includes('காலையில்')) time = 'Morning (before 12 PM)';
   else if (lower.includes('night') || lower.includes('రాత్రి') || lower.includes('रात')) time = 'Night (after 9 PM)';
   else if (lower.includes('6 pm') || lower.includes('6pm')) time = 'After 6 PM';
@@ -276,6 +288,7 @@ export function processUserMessage(
 ): {
   responseMessage: ChatMessage;
   nextState: ConversationState;
+  structuredIntent: StructuredAiIntent;
 } {
   const detectedLang = detectLanguageFromText(userText, currentState.language);
   const cityResult = extractCitiesFromInput(userText);
@@ -359,5 +372,17 @@ export function processUserMessage(
     confidence: cityResult.confidence,
   };
 
-  return { responseMessage, nextState };
+  const structuredIntent: StructuredAiIntent = {
+    language: detectedLang,
+    source: updatedOrigin,
+    destination: updatedDest,
+    date: updatedDate,
+    time: updatedTime,
+    seat_type: updatedSeatType,
+    bus_type: updatedBusType,
+    budget: currentState.maxBudget ? `₹${currentState.maxBudget}` : null,
+    confidence: cityResult.confidence === 'high' ? 0.98 : cityResult.confidence === 'medium' ? 0.85 : 0.60,
+  };
+
+  return { responseMessage, nextState, structuredIntent };
 }
