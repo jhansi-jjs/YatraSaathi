@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, X, Send, Mic, Square, Sparkles, Volume2, MapPin, Bus, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Send, Mic, Square, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 import { processUserMessage, ChatMessage, ConversationState, getNearbyBoardingPoints } from '../lib/agenticAiService';
+import { speakWithBrowser, getRecognitionLang, getSpeechRecognitionCtor, type SpeechRecognitionInstance, type SpeechRecognitionResultEvent } from '../lib/speech';
 
 export default function ChatbotWidget() {
   const navigate = useNavigate();
-  const { currentLanguage, setLanguage, t } = useLanguage();
+  const { currentLanguage, setLanguage } = useLanguage();
   const { session, updateSession } = useSearch();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -39,45 +40,11 @@ export default function ChatbotWidget() {
   ]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
-
-  function speakText(text: string, langCode: string) {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    const targetLang =
-      langCode === 'te' ? 'te-IN'
-      : langCode === 'hi' ? 'hi-IN'
-      : langCode === 'ta' ? 'ta-IN'
-      : langCode === 'kn' ? 'kn-IN'
-      : langCode === 'ml' ? 'ml-IN'
-      : langCode === 'mr' ? 'mr-IN'
-      : langCode === 'gu' ? 'gu-IN'
-      : langCode === 'bn' ? 'bn-IN'
-      : langCode === 'ur' ? 'ur-IN'
-      : langCode === 'pa' ? 'pa-IN'
-      : langCode === 'or' ? 'or-IN'
-      : 'en-IN';
-
-    utterance.lang = targetLang;
-
-    const voices = window.speechSynthesis.getVoices();
-    if (voices && voices.length > 0) {
-      const matchedVoice = voices.find((v) =>
-        v.lang.toLowerCase().replace('_', '-').startsWith(targetLang.substring(0, 2).toLowerCase())
-      );
-      if (matchedVoice) {
-        utterance.voice = matchedVoice;
-      }
-    }
-
-    window.speechSynthesis.speak(utterance);
-  }
 
   function handleSend(textToSend?: string) {
     const query = (textToSend || input).trim();
@@ -122,7 +89,7 @@ export default function ChatbotWidget() {
       setMessages((prev) => [...prev, responseMessage]);
       setIsTyping(false);
 
-      speakText(responseMessage.text, responseMessage.language || currentLanguage);
+      void speakWithBrowser(responseMessage.text, responseMessage.language || currentLanguage);
 
       if (nextState.origin && nextState.destination) {
         const params = new URLSearchParams({
@@ -142,7 +109,7 @@ export default function ChatbotWidget() {
     if (chipText === '📍 My Location') {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
+          () => {
             const nearby = getNearbyBoardingPoints(session.source || state.origin || 'Visakhapatnam');
             const locMsg: ChatMessage = {
               id: `loc-${Date.now()}`,
@@ -168,14 +135,15 @@ export default function ChatbotWidget() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch {}
+        } catch {
+          /* recognition already stopped */
+        }
       }
       setIsRecording(false);
       return;
     }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = getSpeechRecognitionCtor();
 
     if (!SpeechRecognition) {
       alert('Speech Recognition is not supported in this browser.');
@@ -186,26 +154,10 @@ export default function ChatbotWidget() {
       const recog = new SpeechRecognition();
       recog.continuous = false;
       recog.interimResults = false;
-      recog.lang =
-        currentLanguage === 'te'
-          ? 'te-IN'
-          : currentLanguage === 'hi'
-          ? 'hi-IN'
-          : currentLanguage === 'ta'
-          ? 'ta-IN'
-          : currentLanguage === 'kn'
-          ? 'kn-IN'
-          : currentLanguage === 'ml'
-          ? 'ml-IN'
-          : currentLanguage === 'mr'
-          ? 'mr-IN'
-          : currentLanguage === 'gu'
-          ? 'gu-IN'
-          : currentLanguage === 'bn'
-          ? 'bn-IN'
-          : 'en-IN';
+      // Transcribe in the user's selected language's native script (BUG 1).
+      recog.lang = getRecognitionLang(currentLanguage);
 
-      recog.onresult = (event: any) => {
+      recog.onresult = (event: SpeechRecognitionResultEvent) => {
         const text = event.results[0][0].transcript;
         setIsRecording(false);
         if (text) handleSend(text);

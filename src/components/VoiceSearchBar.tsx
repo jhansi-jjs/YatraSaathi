@@ -4,13 +4,17 @@ import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle, Bug, Chevr
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
-import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText } from '../lib/agenticAiService';
+import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText, getResponseTemplate } from '../lib/agenticAiService';
 import { buildOtaDeepLink, OTA_LIST } from '../lib/ota';
-
-const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
-    ? import.meta.env.VITE_BACKEND_URL
-    : 'https://yatrasaathi.onrender.com';
+import {
+  speakWithBrowser,
+  getRecognitionLang,
+  getSpeechRecognitionCtor,
+  BACKEND_URL,
+  type SpeechRecognitionInstance,
+  type SpeechRecognitionResultEvent,
+  type SpeechRecognitionErrorEvent,
+} from '../lib/speech';
 
 export const CITY_ALIASES: Record<string, string> = {
   // Visakhapatnam
@@ -115,36 +119,6 @@ export const CITY_ALIASES: Record<string, string> = {
   മൈസൂരു: 'Mysuru', മૈસુરુ: 'Mysuru',
 };
 
-const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
-  telugu: 'te', తెలుగు: 'te',
-  hindi: 'hi', हिंदी: 'hi', хиन्दी: 'hi',
-  tamil: 'ta', தமிழ்: 'ta',
-  kannada: 'kn', ಕನ್ನಡ: 'kn',
-  malayalam: 'ml', മലയാളം: 'ml',
-  marathi: 'mr', मराठी: 'mr',
-  gujarati: 'gu', ગુજરાતી: 'gu',
-  bengali: 'bn', বাংলা: 'bn',
-  urdu: 'ur', اردو: 'ur',
-  punjabi: 'pa', ਪੰਜਾਬੀ: 'pa',
-  odia: 'or', ଓଡ଼ିଆ: 'or',
-  english: 'en',
-};
-
-const STOP_KEYWORDS = [
-  'stop', 'finish', 'done', 'cancel',
-  'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
-  'రోకో', 'रुकिए', 'बस', 'बंद करो',
-  'நிறுத்து', 'நிறுத்துங்கள்',
-  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು',
-  'നിർത്തുക', 'സ്റ്റോപ്പ്',
-  'थांबा',
-  'રોકો',
-  'থামুন',
-  'روکیں',
-  'ਰੋਕੋ',
-  'రଖନ୍ତୁ'
-];
-
 const CLARIFICATIONS: Record<string, string> = {
   te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: విజయవాడ నుండి హైదరాబాద్).',
   hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: विजयवाड़ा से हैदराबाद)।',
@@ -175,38 +149,15 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   en: (o, d) => `Got it! You're planning to travel from ${o} to ${d}.`,
 };
 
-export function speakWithBrowser(text: string, languageCode: string) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  
-  const targetLang =
-    languageCode === 'te' ? 'te-IN'
-    : languageCode === 'hi' ? 'hi-IN'
-    : languageCode === 'ta' ? 'ta-IN'
-    : languageCode === 'kn' ? 'kn-IN'
-    : languageCode === 'ml' ? 'ml-IN'
-    : languageCode === 'mr' ? 'mr-IN'
-    : languageCode === 'gu' ? 'gu-IN'
-    : languageCode === 'bn' ? 'bn-IN'
-    : languageCode === 'ur' ? 'ur-IN'
-    : languageCode === 'pa' ? 'pa-IN'
-    : languageCode === 'or' ? 'or-IN'
-    : 'en-IN';
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  utterance.lang = targetLang;
-
-  const voices = window.speechSynthesis.getVoices();
-  if (voices && voices.length > 0) {
-    const matchedVoice = voices.find((v) =>
-      v.lang.toLowerCase().replace('_', '-').startsWith(targetLang.substring(0, 2).toLowerCase())
-    );
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-  }
-
-  window.speechSynthesis.speak(utterance);
+// " — 19 Aug 2026" style suffix appended to the spoken confirmation.
+function formatDateSuffix(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-').map(Number);
+  const [y, m, d] = parts;
+  if (!y || !m || !d) return '';
+  return ` — ${String(d).padStart(2, '0')} ${MONTHS_SHORT[m - 1]} ${y}`;
 }
 
 interface PipelineLog {
@@ -214,6 +165,19 @@ interface PipelineLog {
   stage: string;
   detail: string;
   type: 'info' | 'success' | 'warn' | 'error';
+}
+
+interface DebugEntities {
+  rawTranscript?: string;
+  detectedLang?: string;
+  origin?: string | null;
+  destination?: string | null;
+  date?: string | null;
+  time?: string | null;
+  busType?: string | null;
+  seatType?: string | null;
+  confidence?: 'high' | 'medium' | 'low';
+  readyToSearch?: boolean;
 }
 
 export default function VoiceSearchBar() {
@@ -232,13 +196,13 @@ export default function VoiceSearchBar() {
   // Debug Panel State
   const [showDebugPanel, setShowDebugPanel] = useState(true);
   const [pipelineLogs, setPipelineLogs] = useState<PipelineLog[]>([]);
-  const [debugEntities, setDebugEntities] = useState<any>({});
+  const [debugEntities, setDebugEntities] = useState<DebugEntities>({});
   const [debugOtaUrls, setDebugOtaUrls] = useState<Record<string, string>>({});
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const fullTranscriptRef = useRef<string>('');
 
@@ -298,7 +262,7 @@ export default function VoiceSearchBar() {
       recorder.start(100);
       mediaRecorderRef.current = recorder;
       addPipelineLog('1. MediaRecorder', 'MediaRecorder started. Recording WebM audio stream...', 'success');
-    } catch (err) {
+    } catch {
       addPipelineLog('Mic Error', 'Microphone permission denied or audio device missing', 'error');
       setMicError('Microphone permission required for voice search. Please allow mic access in browser.');
       isRecordingRef.current = false;
@@ -306,26 +270,19 @@ export default function VoiceSearchBar() {
       return;
     }
 
-    // Optional SpeechRecognition for real-time live preview feedback if supported
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    // Optional SpeechRecognition for real-time live preview feedback if supported.
+    // recognition.lang is set from the user's selected language so speech is
+    // transcribed in that language's native script (BUG 1).
+    const SpeechRecognition = getSpeechRecognitionCtor();
 
     if (SpeechRecognition) {
       try {
         const recog = new SpeechRecognition();
         recog.continuous = true;
         recog.interimResults = true;
-        recog.lang =
-          currentLanguage === 'te' ? 'te-IN'
-          : currentLanguage === 'hi' ? 'hi-IN'
-          : currentLanguage === 'ta' ? 'ta-IN'
-          : currentLanguage === 'kn' ? 'kn-IN'
-          : currentLanguage === 'ml' ? 'ml-IN'
-          : currentLanguage === 'mr' ? 'mr-IN'
-          : currentLanguage === 'gu' ? 'gu-IN'
-          : currentLanguage === 'bn' ? 'bn-IN'
-          : 'en-IN';
+        recog.lang = getRecognitionLang(currentLanguage);
 
-        recog.onresult = (event: any) => {
+        recog.onresult = (event: SpeechRecognitionResultEvent) => {
           let currentText = '';
           for (let i = 0; i < event.results.length; i++) {
             currentText += event.results[i][0].transcript + ' ';
@@ -338,7 +295,7 @@ export default function VoiceSearchBar() {
           }
         };
 
-        recog.onerror = (e: any) => {
+        recog.onerror = (e: SpeechRecognitionErrorEvent) => {
           console.log('Browser SpeechRecognition event:', e.error);
           addPipelineLog('STT Preview', `Live preview speech event: ${e.error} (falling back to backend Whisper)`, 'warn');
         };
@@ -358,14 +315,18 @@ export default function VoiceSearchBar() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch {}
+      } catch {
+        /* recognition already stopped */
+      }
     }
 
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         addPipelineLog('2. Stop Recording', 'Stopping MediaRecorder. Preparing audio blob for upload...', 'info');
         mediaRecorderRef.current.stop();
-      } catch {}
+      } catch {
+        /* recorder already stopped */
+      }
     } else {
       const finalText = fullTranscriptRef.current || transcript;
       if (finalText && finalText.trim().length > 0) {
@@ -402,8 +363,10 @@ export default function VoiceSearchBar() {
       'info'
     );
 
+    // Start from whatever the shared session already knows so a follow-up answer
+    // merges with captured details instead of resetting them (BUG 2).
     let origin: string | null = currentContextOrigin || session.source || null;
-    let destination: string | null = null;
+    let destination: string | null = session.destination || null;
 
     if (cityResult.cities.length >= 2) {
       origin = cityResult.cities[0];
@@ -417,17 +380,27 @@ export default function VoiceSearchBar() {
       }
     }
 
+    // Only overwrite a detail when the utterance mentioned it; otherwise keep session's.
+    const mergedDate = prefResult.date || session.date || new Date().toISOString().split('T')[0];
+    const mergedTime = prefResult.time || session.time;
+    const mergedBusType = prefResult.busType || session.busType;
+    const mergedSeatType = prefResult.seatType || session.seatType;
+
     if (origin || destination) {
       updateSession({
         source: origin || session.source,
         destination: destination || session.destination,
-        date: prefResult.date || session.date,
-        time: prefResult.time || session.time,
-        busType: prefResult.busType || session.busType,
-        seatType: prefResult.seatType || session.seatType,
+        date: mergedDate,
+        time: mergedTime,
+        busType: mergedBusType,
+        seatType: mergedSeatType,
         language: lang,
       });
-      addPipelineLog('Global SearchSession Sync', `Updated SearchSession: From=${origin || 'N/A'}, To=${destination || 'N/A'}`, 'success');
+      addPipelineLog(
+        'Global SearchSession Sync',
+        `Updated SearchSession: From=${origin || 'N/A'}, To=${destination || 'N/A'}, Date=${mergedDate}`,
+        'success'
+      );
     }
 
     const ready = Boolean(origin && destination);
@@ -435,26 +408,27 @@ export default function VoiceSearchBar() {
     const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
     const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
 
-    const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
-    const spoken = ready
-      ? confirmationFn(originNative, destNative)
-      : cityResult.confidence === 'low' && cityResult.lowConfCity
-      ? (lang === 'te' ? `మీరు ${cityResult.lowConfCity} అని అంటున్నారా? దయచేసి మళ్లీ చెప్పండి.`
-         : lang === 'hi' ? `क्या आपका मतलब ${cityResult.lowConfCity} है?`
-         : `Did you mean ${cityResult.lowConfCity}? Please specify your destination.`)
-      : origin
-      ? (lang === 'te' ? `సరే! మీరు ${originNative} నుండి ప్రయాణిస్తున్నారు. ఏ నగరానికి వెళ్లాలనుకుంటున్నారు?`
-         : lang === 'hi' ? `ठीक है! आप ${originNative} से यात्रा कर रहे हैं। किस शहर जाना चाहते हैं?`
-         : lang === 'ml' ? `ശരി! നിങ്ങൾ ${originNative} ൽ നിന്നാണ് പുറപ്പെടുന്നത്. ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്?`
-         : lang === 'ta' ? `சரி! நீங்கள் ${originNative} இலிருந்து புறப்படுகிறீர்கள். எந்த நகரத்திற்குச் செல்ல வேண்டும்?`
-         : `Got it! You are departing from ${origin}. Where would you like to travel to?`)
-      : (CLARIFICATIONS[lang] || CLARIFICATIONS['en']);
+    const template = getResponseTemplate(lang);
+    let spoken: string;
+    if (ready) {
+      // Confirm the parsed route back in the user's language, including the travel
+      // date (BUG 3). Whether the route has direct buses is decided on the Results
+      // page, which shows connecting journeys when there are none (BUG 4).
+      const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
+      spoken = `${confirmationFn(originNative, destNative)}${formatDateSuffix(mergedDate)}`;
+    } else if (cityResult.confidence === 'low' && cityResult.lowConfCity) {
+      spoken = template.lowConfidencePrompt(cityResult.lowConfCity);
+    } else if (origin) {
+      // Only the destination is missing: ask just for that, in the user's language.
+      spoken = template.needDest(originNative);
+    } else {
+      spoken = CLARIFICATIONS[lang] || CLARIFICATIONS['en'];
+    }
 
     if (origin && destination) {
-      const dateVal = prefResult.date || session.date || new Date().toISOString().split('T')[0];
       const urls: Record<string, string> = {};
       OTA_LIST.forEach((ota) => {
-        urls[ota] = buildOtaDeepLink({ ota_source: ota }, origin, destination, dateVal);
+        urls[ota] = buildOtaDeepLink({ ota_source: ota }, origin, destination, mergedDate);
       });
       setDebugOtaUrls(urls);
       addPipelineLog('8. OTA Links', `Generated dynamic booking URLs for ${OTA_LIST.length} OTAs`, 'success');
@@ -465,10 +439,10 @@ export default function VoiceSearchBar() {
       detectedLang: lang,
       origin,
       destination,
-      date: prefResult.date || session.date,
-      time: prefResult.time || session.time,
-      busType: prefResult.busType || session.busType,
-      seatType: prefResult.seatType || session.seatType,
+      date: mergedDate,
+      time: mergedTime,
+      busType: mergedBusType,
+      seatType: mergedSeatType,
       confidence: cityResult.confidence,
       readyToSearch: ready,
     });
@@ -478,10 +452,10 @@ export default function VoiceSearchBar() {
       intent: {
         origin,
         destination,
-        date: prefResult.date || session.date,
-        time: prefResult.time || session.time,
-        busType: prefResult.busType || session.busType,
-        seatType: prefResult.seatType || session.seatType,
+        date: mergedDate,
+        time: mergedTime,
+        busType: mergedBusType,
+        seatType: mergedSeatType,
         language: lang,
         clarification_needed: ready ? null : spoken,
       },

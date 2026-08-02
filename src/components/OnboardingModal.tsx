@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Mic, Layers, GitFork, ArrowRight, CheckCircle2, Volume2, Bus, ArrowDown } from 'lucide-react';
+import { Sparkles, Mic, Layers, GitFork, ArrowRight, CheckCircle2, Volume2, Bus } from 'lucide-react';
 
 interface OnboardingModalProps {
   isOpen: boolean;

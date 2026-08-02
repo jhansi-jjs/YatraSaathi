@@ -10,11 +10,6 @@ export default function WelcomePage() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [onboardingOpen, setOnboardingOpen] = useState(false);
 
-  const openLogin = () => {
-    setAuthMode('login');
-    setAuthModalOpen(true);
-  };
-
   const openSignUp = () => {
     setAuthMode('signup');
     setAuthModalOpen(true);

@@ -1,12 +1,12 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Bus, User, LogOut, ArrowLeft, Home, Bell, Settings, Shield, Globe } from 'lucide-react';
+import { Bus, LogOut, ArrowLeft, Home, Bell, Settings, Shield, Globe } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage, SUPPORTED_LANGUAGES } from '../context/LanguageContext';
 
 export default function Header() {
   const { user, profile, signOut } = useAuth();
-  const { currentLanguage, setLanguage, t } = useLanguage();
+  const { currentLanguage, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 

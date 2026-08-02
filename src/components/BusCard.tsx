@@ -39,7 +39,9 @@ export default function BusCard({ listing, index }: BusCardProps) {
         ota_source: listing.ota_source,
         session_id: getSessionId(),
       });
-    } catch {}
+    } catch {
+      /* click logging is best-effort */
+    }
     window.open(deepLink, '_blank', 'noopener,noreferrer');
   };
 
@@ -50,8 +52,9 @@ export default function BusCard({ listing, index }: BusCardProps) {
   };
 
   const otaColor = OTA_COLORS[listing.ota_source] || 'bg-slate-100 text-slate-600';
-  const originCity = searchOrigin || listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
-  const destCity = searchDestination || listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
+  const loose = listing as unknown as { origin_city?: string; destination_city?: string; origin?: string; destination?: string };
+  const originCity = searchOrigin || listing.routes?.origin_city || loose.origin_city || loose.origin || 'Visakhapatnam';
+  const destCity = searchDestination || listing.routes?.destination_city || loose.destination_city || loose.destination || 'Hyderabad';
 
   return (
     <div

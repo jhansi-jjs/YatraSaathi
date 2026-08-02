@@ -74,12 +74,14 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  const [cities, setCities] = useState<string[]>(DEFAULT_CITIES);
+  const [cities] = useState<string[]>(DEFAULT_CITIES);
 
   useEffect(() => {
     try {
       localStorage.setItem('yatra_saathi_search_session', JSON.stringify(session));
-    } catch {}
+    } catch {
+      /* localStorage unavailable (private mode) */
+    }
   }, [session]);
 
   const setSource = (source: string | null) => {
@@ -111,7 +113,9 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setSession(INITIAL_STATE);
     try {
       localStorage.removeItem('yatra_saathi_search_session');
-    } catch {}
+    } catch {
+      /* localStorage unavailable (private mode) */
+    }
   };
 
   return (

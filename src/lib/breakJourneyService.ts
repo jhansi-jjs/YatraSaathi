@@ -14,15 +14,64 @@ export interface BreakJourneyRoute {
 const MAJOR_HUBS: Record<string, string[]> = {
   Kochi: ['Bengaluru', 'Chennai', 'Coimbatore'],
   Hyderabad: ['Vijayawada', 'Bengaluru', 'Guntur'],
-  Visakhapatnam: ['Vijayawada', 'Rajahmundry', 'Hyderabad'],
+  Visakhapatnam: ['Vijayawada', 'Hyderabad', 'Bengaluru'],
   Bengaluru: ['Chennai', 'Hyderabad', 'Mysuru'],
-  Chennai: ['Bengaluru', 'Coimbatore', 'Madurai'],
-  Mumbai: ['Pune', 'Delhi'],
-  Pune: ['Mumbai', 'Bengaluru'],
-  Delhi: ['Mumbai', 'Kolkata'],
+  Chennai: ['Bengaluru', 'Hyderabad', 'Coimbatore'],
+  Coimbatore: ['Bengaluru', 'Chennai', 'Kochi'],
+  Madurai: ['Chennai', 'Bengaluru', 'Coimbatore'],
+  Mysuru: ['Bengaluru', 'Chennai', 'Hyderabad'],
+  Tirupati: ['Chennai', 'Bengaluru', 'Hyderabad'],
+  Mumbai: ['Pune', 'Hyderabad', 'Delhi'],
+  Pune: ['Mumbai', 'Bengaluru', 'Hyderabad'],
+  Delhi: ['Mumbai', 'Hyderabad', 'Kolkata'],
+  Kolkata: ['Hyderabad', 'Bengaluru', 'Delhi'],
   Anantapur: ['Bengaluru', 'Hyderabad'],
   Kurnool: ['Hyderabad', 'Bengaluru'],
 };
+
+// Curated list of genuinely long, inter-region city pairs that have no realistic
+// direct bus service. For these, the app surfaces connecting (break) journeys
+// instead of direct listings. Undirected — both A->B and B->A count.
+const NO_DIRECT_PAIRS = new Set<string>(
+  [
+    ['Kochi', 'Delhi'],
+    ['Kochi', 'Kolkata'],
+    ['Kochi', 'Mumbai'],
+    ['Coimbatore', 'Delhi'],
+    ['Coimbatore', 'Kolkata'],
+    ['Coimbatore', 'Mumbai'],
+    ['Madurai', 'Delhi'],
+    ['Madurai', 'Kolkata'],
+    ['Madurai', 'Mumbai'],
+    ['Mysuru', 'Delhi'],
+    ['Mysuru', 'Kolkata'],
+    ['Chennai', 'Delhi'],
+    ['Chennai', 'Kolkata'],
+    ['Bengaluru', 'Delhi'],
+    ['Bengaluru', 'Kolkata'],
+    ['Hyderabad', 'Kolkata'],
+    ['Visakhapatnam', 'Delhi'],
+    ['Visakhapatnam', 'Mumbai'],
+    ['Tirupati', 'Delhi'],
+    ['Tirupati', 'Kolkata'],
+    ['Tirupati', 'Mumbai'],
+    ['Vijayawada', 'Delhi'],
+    ['Vijayawada', 'Kolkata'],
+    ['Warangal', 'Delhi'],
+    ['Warangal', 'Kolkata'],
+  ].map(([a, b]) => [a, b].sort().join('|'))
+);
+
+function pairKey(a: string, b: string): string {
+  return [a, b].sort().join('|');
+}
+
+// Returns false for curated long cross-region routes that have no direct buses.
+export function hasDirectBuses(origin: string, destination: string): boolean {
+  if (!origin || !destination) return true;
+  if (origin.toLowerCase() === destination.toLowerCase()) return true;
+  return !NO_DIRECT_PAIRS.has(pairKey(origin, destination));
+}
 
 export function computeBreakJourneyRoutes(
   origin: string,

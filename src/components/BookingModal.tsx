@@ -28,8 +28,9 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
   const gst = Math.round(baseFare * 0.05);
   const totalPayable = baseFare + gst;
 
-  const originCity = listing.routes?.origin_city || (listing as any).origin_city || (listing as any).origin || 'Visakhapatnam';
-  const destCity = listing.routes?.destination_city || (listing as any).destination_city || (listing as any).destination || 'Hyderabad';
+  const loose = listing as unknown as { origin_city?: string; destination_city?: string; origin?: string; destination?: string };
+  const originCity = listing.routes?.origin_city || loose.origin_city || loose.origin || 'Visakhapatnam';
+  const destCity = listing.routes?.destination_city || loose.destination_city || loose.destination || 'Hyderabad';
 
   const toggleSeat = (seatId: string) => {
     if (selectedSeats.includes(seatId)) {

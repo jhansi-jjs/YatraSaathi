@@ -8,8 +8,10 @@ import FilterPanel, { FilterState } from '../components/FilterPanel';
 import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink, Sparkles, Clock, Award } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
-import { computeBreakJourneyRoutes, BreakJourneyRoute } from '../lib/breakJourneyService';
+import { computeBreakJourneyRoutes, hasDirectBuses, BreakJourneyRoute } from '../lib/breakJourneyService';
 import { buildOtaDeepLink } from '../lib/ota';
+import { NO_DIRECT_MESSAGES, CONNECTING_CHOICE_PROMPT, CONNECTING_CHOICE_LABELS } from '../lib/agenticAiService';
+import { speakWithBrowser } from '../lib/speech';
 
 type SortOption = 'price_low' | 'price_high' | 'rating' | 'duration';
 
@@ -43,9 +45,9 @@ function generateDynamicListings(origin: string, destination: string, travelDate
 
   operators.forEach((op, index) => {
     const ota = otas[index % otas.length];
-    const busType = op.type as any;
-    const acStatus = op.ac as any;
-    const busModel = op.model as any;
+    const busType = op.type as BusListingWithRoute['bus_type'];
+    const acStatus = op.ac as BusListingWithRoute['ac_status'];
+    const busModel = op.model as BusListingWithRoute['bus_model'];
     const price = 420 + (index * 95) + (acStatus === 'ac' ? 180 : 0) + (busType === 'sleeper' ? 220 : 0);
     const depHour = (6 + index * 1.5) % 24;
     const depH = Math.floor(depHour);
@@ -68,7 +70,7 @@ function generateDynamicListings(origin: string, destination: string, travelDate
       currency: 'INR',
       ota_source: ota,
       rating: Number((4.1 + (index * 0.12) % 0.8).toFixed(1)),
-      deep_link_url: buildOtaDeepLink(op, origin, destination, travelDate),
+      deep_link_url: buildOtaDeepLink({ ota_source: ota }, origin, destination, travelDate),
       travel_date: travelDate,
       departure_time: depTime,
       arrival_time: arrTime,
@@ -91,7 +93,7 @@ function generateDynamicListings(origin: string, destination: string, travelDate
 
 export default function ResultsPage() {
   const [searchParams] = useSearchParams();
-  const { t, getCityName } = useLanguage();
+  const { t, getCityName, currentLanguage } = useLanguage();
   const { session, setSearchRoute } = useSearch();
   
   const origin = searchParams.get('origin') || session.source || '';
@@ -106,6 +108,8 @@ export default function ResultsPage() {
 
   const [listings, setListings] = useState<BusListingWithRoute[]>([]);
   const [breakRoutes, setBreakRoutes] = useState<BreakJourneyRoute[]>([]);
+  const [noDirect, setNoDirect] = useState(false);
+  const [selectedBreakId, setSelectedBreakId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
@@ -123,10 +127,20 @@ export default function ResultsPage() {
     async function fetchListings() {
       setLoading(true);
       setError(null);
+      setSelectedBreakId(null);
 
-      // Compute agentic break-journey routes
-      const bRoutes = computeBreakJourneyRoutes(origin, destination, date);
-      setBreakRoutes(bRoutes);
+      // BUG 4: when the route has no direct buses, surface connecting (break)
+      // journeys instead of an empty list.
+      if (!hasDirectBuses(origin, destination)) {
+        setListings([]);
+        setBreakRoutes(computeBreakJourneyRoutes(origin, destination, date));
+        setNoDirect(true);
+        setLoading(false);
+        return;
+      }
+
+      setNoDirect(false);
+      setBreakRoutes([]);
 
       const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000));
 
@@ -175,6 +189,18 @@ export default function ResultsPage() {
       isSubscribed = false;
     };
   }, [origin, destination, date]);
+
+  // Announce the "no direct buses" message aloud in the user's language (BUG 4).
+  useEffect(() => {
+    if (!loading && noDirect && origin && destination) {
+      const msg = (NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(
+        getCityName(origin),
+        getCityName(destination)
+      );
+      void speakWithBrowser(msg, currentLanguage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, noDirect, origin, destination, currentLanguage]);
 
   const filtered = useMemo(() => {
     let result = [...listings];
@@ -308,7 +334,7 @@ export default function ResultsPage() {
                 ))}
               </div>
 
-              {/* Agentic Smart Break-Journeys Section */}
+              {/* BUG 4: No-direct-bus connecting (break) journeys */}
               {breakRoutes.length > 0 && (
                 <div className="mt-10 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 text-white border border-amber-500/30 shadow-2xl space-y-4">
                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -318,13 +344,16 @@ export default function ResultsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h2 className="text-lg font-bold text-white">Agentic Smart Break-Journeys</h2>
+                          <h2 className="text-lg font-bold text-white">No Direct Buses — Connecting Journeys</h2>
                           <span className="badge bg-amber-400 text-slate-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Sparkles className="h-3 w-3 fill-current" /> AI Recommended
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300">
-                          Guaranteed connecting transfer options via major hubs when direct seat availability is tight on {date}
+                        <p className="text-xs text-amber-200 mt-1">
+                          {(NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(getCityName(origin), getCityName(destination))}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Connecting transfer options via major hubs for {date}
                         </p>
                       </div>
                     </div>
@@ -334,6 +363,9 @@ export default function ResultsPage() {
                     {breakRoutes.map((br, index) => {
                       const leg1Url = buildOtaDeepLink(br.leg1, br.leg1.routes.origin_city, br.leg1.routes.destination_city, date);
                       const leg2Url = buildOtaDeepLink(br.leg2, br.leg2.routes.origin_city, br.leg2.routes.destination_city, date);
+                      const labels = CONNECTING_CHOICE_LABELS[currentLanguage] || CONNECTING_CHOICE_LABELS.en;
+                      const choicePrompt = CONNECTING_CHOICE_PROMPT[currentLanguage] || CONNECTING_CHOICE_PROMPT.en;
+                      const isSelected = selectedBreakId === br.id;
 
                       return (
                         <div key={br.id} className="rounded-xl bg-white/5 p-4 border border-white/10 flex flex-col justify-between gap-3 hover:border-amber-400/40 transition-all">
@@ -372,24 +404,49 @@ export default function ResultsPage() {
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
-                            <a
-                              href={leg1Url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
+                          {/* Ask the user what to do next, in their language (BUG 4). */}
+                          {!isSelected ? (
+                            <button
+                              onClick={() => setSelectedBreakId(br.id)}
+                              className="w-full text-center py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 font-bold text-xs text-slate-900 flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
                             >
-                              Book Leg 1 ({br.leg1.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                            <a
-                              href={leg2Url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
-                            >
-                              Book Leg 2 ({br.leg2.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          </div>
+                              {labels.select}
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-[11px] text-amber-200 font-medium">{choicePrompt}</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                <a
+                                  href={leg1Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-center py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.leg1} <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <a
+                                  href={leg2Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-center py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.leg2} <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <button
+                                  onClick={() => {
+                                    window.open(leg1Url, '_blank', 'noopener,noreferrer');
+                                    window.open(leg2Url, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="text-center py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.both}
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-slate-500">
+                                Leg 1 via {br.leg1.ota_source} · Leg 2 via {br.leg2.ota_source}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

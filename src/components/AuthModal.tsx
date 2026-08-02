@@ -18,7 +18,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
 

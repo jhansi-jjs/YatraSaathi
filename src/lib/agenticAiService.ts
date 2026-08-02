@@ -1,6 +1,6 @@
 import { CITY_ALIASES } from '../components/VoiceSearchBar';
 import { CITIES } from '../components/SearchForm';
-import { computeBreakJourneyRoutes, BreakJourneyRoute } from './breakJourneyService';
+import { BreakJourneyRoute } from './breakJourneyService';
 import { CITY_TRANSLATIONS } from '../context/LanguageContext';
 
 export interface ChatMessage {
@@ -10,7 +10,7 @@ export interface ChatMessage {
   timestamp: string;
   language?: string;
   actionChips?: string[];
-  results?: any[];
+  results?: unknown[];
   breakRoutes?: BreakJourneyRoute[];
 }
 
@@ -70,91 +70,213 @@ export function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
+// Unicode script ranges are the most reliable signal: when speech is transcribed in
+// its native script (recognition.lang set correctly), a single range check nails it.
+const SCRIPT_RANGES: { lang: string; re: RegExp }[] = [
+  { lang: 'te', re: /[\u0C00-\u0C7F]/ },
+  { lang: 'kn', re: /[\u0C80-\u0CFF]/ },
+  { lang: 'ml', re: /[\u0D00-\u0D7F]/ },
+  { lang: 'ta', re: /[\u0B80-\u0BFF]/ },
+  { lang: 'gu', re: /[\u0A80-\u0AFF]/ },
+  { lang: 'bn', re: /[\u0980-\u09FF]/ },
+  { lang: 'pa', re: /[\u0A00-\u0A7F]/ },
+  { lang: 'or', re: /[\u0B00-\u0B7F]/ },
+  { lang: 'ur', re: /[\u0600-\u06FF]/ },
+  // Devanagari is shared by Hindi and Marathi; disambiguated below by keywords.
+  { lang: 'hi', re: /[\u0900-\u097F]/ },
+];
+
+// Romanized keyword hints, matched with WORD BOUNDARIES so "se" no longer matches
+// inside "buses" and "to" no longer matches inside "tomorrow". Latin-only tokens.
+const ROMANIZED_HINTS: Record<string, RegExp[]> = {
+  te: [/\bnenu\b/, /\bnundi\b/, /\bnunchi\b/, /\bnunchee\b/, /\bvellali\b/, /\bkavali\b/],
+  hi: [/\bmujhe\b/, /\bjana\b/, /\bjaana\b/, /\bchahiye\b/, /\bse\b/, /\btak\b/, /\bkal\b/],
+  mr: [/\bmala\b/, /\bpahije\b/, /\bpasun\b/, /\bhava\b/, /\bjaycha\b/],
+  ml: [/\benikku\b/, /\bninnu\b/, /\bpokanam\b/, /\bvenam\b/, /\bcheyyu\b/],
+  ta: [/\benakku\b/, /\birundhu\b/, /\bponganum\b/, /\bvendum\b/, /\bpoga\b/],
+  kn: [/\bnanage\b/, /\bbeku\b/, /\binda\b/, /\bhoga\b/, /\bhogabeku\b/],
+  gu: [/\bmare\b/, /\bjoiye\b/, /\bthi\b/, /\bjavu\b/],
+  bn: [/\bamake\b/, /\btheke\b/, /\bjete\b/, /\bchai\b/],
+  pa: [/\bmainu\b/, /\bjana\b/, /\bton\b/, /\bchahida\b/],
+  ur: [/\bmujhe\b/, /\bjana\b/, /\bchahiye\b/],
+  or: [/\bmote\b/, /\bjibi\b/, /\bru\b/, /\bku\b/],
+};
+
+// Marathi vs Hindi (both Devanagari) \u2014 a few unambiguous Marathi markers.
+const MARATHI_MARKERS = ['\u092A\u093E\u0938\u0942\u0928', '\u092A\u093E\u0939\u093F\u091C\u0947', '\u0939\u0935\u0902', '\u0939\u0935\u0947', '\u091C\u093E\u092F\u091A\u0902', '\u092E\u0932\u093E'];
+
 export function detectLanguageFromText(text: string, currentLang: string): string {
-  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
-  if (/[\u0900-\u097F]/.test(text)) return 'hi';
-  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
-  if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
-  if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
-  if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';
-  if (/[\u0980-\u09FF]/.test(text)) return 'bn';
-  if (/[\u0600-\u06FF]/.test(text)) return 'ur';
-  if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';
-  if (/[\u0B00-\u0B7F]/.test(text)) return 'or';
+  const trimmed = (text || '').trim();
+  if (!trimmed) return currentLang;
 
-  const lower = text.toLowerCase();
-  if (lower.includes('nenu') || lower.includes('nundi') || lower.includes('nunchi') || lower.includes('vellali')) return 'te';
-  if (lower.includes('mujhe') || lower.includes('jana hai') || lower.includes('se') || lower.includes('tak')) return 'hi';
-  if (lower.includes('enikku') || lower.includes('ninnu') || lower.includes('pokanam')) return 'ml';
-  if (lower.includes('enakku') || lower.includes('irundhu') || lower.includes('poganum')) return 'ta';
-  if (lower.includes('nanage') || lower.includes('hoga') || lower.includes('beku')) return 'kn';
+  for (const { lang, re } of SCRIPT_RANGES) {
+    if (re.test(trimmed)) {
+      if (lang === 'hi' && MARATHI_MARKERS.some((m) => trimmed.includes(m))) return 'mr';
+      return lang;
+    }
+  }
 
+  // Latin transcript: score romanized hints per language with word boundaries.
+  const lower = ` ${trimmed.toLowerCase()} `;
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const [lang, patterns] of Object.entries(ROMANIZED_HINTS)) {
+    const score = patterns.reduce((acc, re) => acc + (re.test(lower) ? 1 : 0), 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = lang;
+    }
+  }
+  if (best && bestScore > 0) return best;
+
+  // No strong signal: keep the user's selected language rather than forcing English.
   return currentLang;
 }
 
-// RapidFuzz & N-Gram City Normalizer matching strictly against CITIES dropdown dataset
-export function extractCitiesFromInput(text: string): { cities: string[]; confidence: 'high' | 'medium' | 'low'; lowConfCity?: string } {
+// Directional connectives. We only key off ENGLISH PREPOSITIONS here ("from"/"to"),
+// which sit BEFORE their city, so "the city after the marker" is a valid rule.
+// Indic connectives ("se", "nunchi", "ku", …) are POSTPOSITIONS that follow the
+// origin, so plain left-to-right position order already resolves them correctly —
+// no marker override needed (and applying one would invert origin/destination).
+const ORIGIN_MARKERS = ['from', 'frm', 'starting from', 'departing from'];
+const DEST_MARKERS = ['to', 'towards', 'going to', 'reaching'];
+
+function isAsciiToken(token: string): boolean {
+  return /^[a-z\s]+$/i.test(token);
+}
+
+// Index of the earliest occurrence of any marker in `lower`, or -1.
+function firstMarkerIndex(lower: string, markers: string[]): number {
+  let earliest = -1;
+  for (const m of markers) {
+    const needle = m.toLowerCase();
+    let idx = -1;
+    if (isAsciiToken(needle)) {
+      const re = new RegExp(`\\b${needle.trim()}\\b`);
+      const match = re.exec(lower);
+      idx = match ? match.index : -1;
+    } else {
+      idx = lower.indexOf(needle);
+    }
+    if (idx >= 0 && (earliest === -1 || idx < earliest)) earliest = idx;
+  }
+  return earliest;
+}
+
+interface CityMatch {
+  city: string;
+  index: number;
+}
+
+// Record the earliest text position for a city (keeps only the first occurrence).
+function recordMatch(matches: CityMatch[], city: string, index: number) {
+  if (index < 0) return;
+  const existing = matches.find((m) => m.city === city);
+  if (!existing) matches.push({ city, index });
+  else if (index < existing.index) existing.index = index;
+}
+
+// RapidFuzz & N-Gram City Normalizer matching strictly against CITIES dropdown dataset.
+// Cities are ordered by their POSITION in the sentence and then refined using
+// origin/destination connectives so "from kochi to delhi" -> [Kochi, Delhi] and even
+// "to delhi from kochi" -> [Kochi, Delhi].
+export function extractCitiesFromInput(text: string): {
+  cities: string[];
+  confidence: 'high' | 'medium' | 'low';
+  lowConfCity?: string;
+} {
   const lower = text.toLowerCase().trim();
-  const words = lower.split(/[\s,.-]+/);
-  const found: string[] = [];
+  const words = lower.split(/[\s,.-]+/).filter(Boolean);
+  const matches: CityMatch[] = [];
 
-  // 1. Check exact multi-script aliases (e.g. "వైజాగ్", "vijayawada", "bezawada", "vja")
+  // 1. Multi-script aliases (e.g. "వైజాగ్", "vijayawada", "bezawada", "vja")
   for (const [alias, canonical] of Object.entries(CITY_ALIASES)) {
-    if (lower.includes(alias.toLowerCase()) && !found.includes(canonical)) {
-      found.push(canonical);
-    }
+    recordMatch(matches, canonical, lower.indexOf(alias.toLowerCase()));
   }
 
-  // 2. Check canonical dropdown city names directly
+  // 2. Canonical dropdown city names directly
   for (const canonical of CITIES) {
-    if (lower.includes(canonical.toLowerCase()) && !found.includes(canonical)) {
-      found.push(canonical);
-    }
+    recordMatch(matches, canonical, lower.indexOf(canonical.toLowerCase()));
   }
 
-  // 3. Multi-word N-Gram combinations (e.g., "vijay wada" -> Vijayawada, "visakha patnam" -> Visakhapatnam)
+  // 3. Multi-word N-Gram combinations (e.g., "vijay wada" -> Vijayawada)
   for (let i = 0; i < words.length - 1; i++) {
     const bigram = `${words[i]}${words[i + 1]}`;
     const bigramSpaced = `${words[i]} ${words[i + 1]}`;
     for (const [alias, canonical] of Object.entries(CITY_ALIASES)) {
-      if ((alias.toLowerCase() === bigram || alias.toLowerCase() === bigramSpaced) && !found.includes(canonical)) {
-        found.push(canonical);
+      if (alias.toLowerCase() === bigram || alias.toLowerCase() === bigramSpaced) {
+        recordMatch(matches, canonical, lower.indexOf(words[i]));
       }
     }
     for (const canonical of CITIES) {
-      if (canonical.toLowerCase().replace(/\s+/g, '') === bigram && !found.includes(canonical)) {
-        found.push(canonical);
+      if (canonical.toLowerCase().replace(/\s+/g, '') === bigram) {
+        recordMatch(matches, canonical, lower.indexOf(words[i]));
       }
     }
   }
 
-  // 4. Fuzzy Levenshtein phonetic matching for STT mishearings (e.g., "third" / "vijawada" -> Vijayawada)
+  // 4. Fuzzy Levenshtein phonetic matching for STT mishearings, only if nothing found.
   let lowConfCity: string | undefined = undefined;
-  let confidence: 'high' | 'medium' | 'low' = found.length >= 2 ? 'high' : found.length === 1 ? 'medium' : 'low';
-
-  if (found.length === 0) {
+  if (matches.length === 0) {
     for (const word of words) {
       if (word.length < 3) continue;
       for (const canonical of CITIES) {
         const dist = levenshteinDistance(word, canonical.toLowerCase());
-        if (dist <= 2 && !found.includes(canonical)) {
-          found.push(canonical);
-          confidence = 'medium';
+        if (dist <= 2) {
+          recordMatch(matches, canonical, lower.indexOf(word));
           break;
         } else if (dist === 3 && !lowConfCity) {
           lowConfCity = canonical;
-          confidence = 'low';
         }
       }
     }
   }
 
-  return { cities: found, confidence, lowConfCity };
+  // Order by position in the sentence.
+  matches.sort((a, b) => a.index - b.index);
+  let ordered = matches.map((m) => m.city);
+
+  // Directional refinement: the city that follows an ORIGIN marker is the origin;
+  // failing that, the city following a DEST marker is the destination. This makes
+  // "from kochi to delhi" and even "to delhi from kochi" both resolve to [Kochi, Delhi].
+  if (matches.length >= 2) {
+    const originIdx = firstMarkerIndex(lower, ORIGIN_MARKERS);
+    if (originIdx >= 0) {
+      const originCity = matches.find((m) => m.index > originIdx);
+      if (originCity) {
+        ordered = [originCity.city, ...ordered.filter((c) => c !== originCity.city)];
+      }
+    } else {
+      const destIdx = firstMarkerIndex(lower, DEST_MARKERS);
+      if (destIdx >= 0) {
+        const destCity = matches.find((m) => m.index > destIdx);
+        if (destCity) {
+          ordered = [...ordered.filter((c) => c !== destCity.city), destCity.city];
+        }
+      }
+    }
+  }
+
+  const confidence: 'high' | 'medium' | 'low' =
+    ordered.length >= 2 ? 'high' : ordered.length === 1 ? 'medium' : lowConfCity ? 'low' : 'low';
+
+  return { cities: ordered, confidence, lowConfCity };
 }
 
-// Continuous natural sentence entity extraction for Time, Bus Type & Seat Type
+const TOMORROW_KEYWORDS = [
+  'tomorrow', 'రేపు', 'कल', 'நாளை', 'ನಾಳೆ', 'നാളെ', 'उद्या', 'આવતીકાલે', 'আগামীকাল',
+  'کل', 'ਭਲਕੇ', 'ଆସନ୍ତାକାଲି',
+];
+const DAY_AFTER_KEYWORDS = ['day after tomorrow', 'ఎల్లుండి', 'परसों', 'நாள்மறுநாள்', 'മറ്റന്നാൾ'];
+const TODAY_KEYWORDS = [
+  'today', 'ఈరోజు', 'ఇవాళ', 'आज', 'இன்று', 'ಇಂದು', 'ഇന്ന്', 'আজ', 'આજે', 'آج', 'ਅੱਜ', 'ଆଜି',
+];
+
+// Continuous natural sentence entity extraction for Date, Time, Bus Type & Seat Type.
+// `date` is null when the user did not mention a date, so callers can preserve any
+// date already captured in the session instead of overwriting it with today.
 export function extractContinuousPreferences(text: string): {
-  date: string;
+  date: string | null;
   time: string | null;
   busType: string | null;
   seatType: string | null;
@@ -162,22 +284,12 @@ export function extractContinuousPreferences(text: string): {
   const lower = text.toLowerCase();
   const today = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const dayAfter = new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0];
 
-  let date = today;
-  if (
-    lower.includes('tomorrow') ||
-    lower.includes('రేపు') ||
-    lower.includes('कल') ||
-    lower.includes('நாளை') ||
-    lower.includes('ನಾಳೆ') ||
-    lower.includes('നാളെ') ||
-    lower.includes('उद्या') ||
-    lower.includes('આવતીકાલે') ||
-    lower.includes('আগামীকাল') ||
-    lower.includes('کل')
-  ) {
-    date = tomorrow;
-  }
+  let date: string | null = null;
+  if (DAY_AFTER_KEYWORDS.some((k) => lower.includes(k))) date = dayAfter;
+  else if (TOMORROW_KEYWORDS.some((k) => lower.includes(k))) date = tomorrow;
+  else if (TODAY_KEYWORDS.some((k) => lower.includes(k))) date = today;
 
   let time: string | null = null;
   if (lower.includes('evening') || lower.includes('సాయంత్రం') || lower.includes('వైകുന്നేరం')) time = 'Evening (after 6 PM)';
@@ -201,85 +313,142 @@ export function getNearbyBoardingPoints(city: string): string[] {
   return BOARDING_POINTS[city] || ['Main Bus Station', 'City Central Stop'];
 }
 
-// Complete 12-Language Native Response Generator
-const MULTILINGUAL_RESPONSES: Record<string, {
-  complete: (o: string, d: string, date: string, detailsStr?: string) => string;
+// Complete 12-Language Native Response Generator. Exported so VoiceSearchBar and
+// ChatbotWidget share the exact same native strings for every response path.
+export interface ResponseTemplate {
+  complete: (o: string, d: string) => string;
   needOrigin: string;
   needDest: (o: string) => string;
   lowConfidencePrompt: (city: string) => string;
-}> = {
+}
+
+export const RESPONSE_TEMPLATES: Record<string, ResponseTemplate> = {
   te: {
-    complete: (o, d, date, details) => `సరే! మీరు ${o} నుండి ${d} కు ${details ? details + ' లో ' : ''}ప్రయాణించాలనుకుంటున్నారు. అందుబాటులో ఉన్న బస్సుల వివరాలను చూపిస్తున్నాను:`,
+    complete: (o, d) => `సరే! మీరు ${o} నుండి ${d} కు ప్రయాణించాలనుకుంటున్నారు. అందుబాటులో ఉన్న బస్సుల వివరాలను చూపిస్తున్నాను:`,
     needOrigin: 'దయచేసి మీరు ఏ నగరం నుండి ప్రయాణించాలనుకుంటున్నారో చెప్పండి (ఉదా: విజయవాడ, హైదరాబాద్, కొచ్చి).',
     needDest: (o) => `సరే! మీరు ${o} నుండి ప్రయాణిస్తున్నారు. మీరు ఏ నగరానికి వెళ్లాలనుకుంటున్నారు? (ఉదా: హైదరాబాద్, వరంగల్).`,
     lowConfidencePrompt: (c) => `మీరు ${c} అని అంటున్నారా? దయచేసి అవును అని చెప్పండి లేదా మీ నగర పేరును మళ్లీ చెప్పండి.`,
   },
   hi: {
-    complete: (o, d, date, details) => `ठीक है! आप ${o} से ${d} की ${details ? details + ' ' : ''}यात्रा करना चाहते हैं। उपलब्ध बसें दिखाई जा रही हैं:`,
+    complete: (o, d) => `ठीक है! आप ${o} से ${d} की यात्रा करना चाहते हैं। उपलब्ध बसें दिखाई जा रही हैं:`,
     needOrigin: 'कृपया बताएं कि आप किस शहर से प्रस्थान करना चाहते हैं (जैसे: विजयवाड़ा, हैदराबाद, कोच्चि)।',
     needDest: (o) => `ठीक है! आप ${o} से यात्रा कर रहे हैं। आप किस शहर जाना चाहते हैं? (जैसे: हैदराबाद, वारंगल)।`,
     lowConfidencePrompt: (c) => `क्या आपका मतलब ${c} है? कृपया पुष्टि करें।`,
   },
   ta: {
-    complete: (o, d, date, details) => `சரி! நீங்கள் ${o} இலிருந்து ${d} செல்ல விரும்புகிறீர்கள். பேருந்துகளைக் காட்டுகிறோம்:`,
+    complete: (o, d) => `சரி! நீங்கள் ${o} இலிருந்து ${d} செல்ல விரும்புகிறீர்கள். பேருந்துகளைக் காட்டுகிறோம்:`,
     needOrigin: 'தயவுசெய்து நீங்கள் புறப்படும் நகரத்தைக் கூறுங்கள்.',
     needDest: (o) => `சரி! நீங்கள் ${o} இலிருந்து புறப்படுகிறீர்கள். எந்த நகரத்திற்குச் செல்ல வேண்டும்?`,
     lowConfidencePrompt: (c) => `நீங்கள் ${c} என்று குறிப்பிடுகிறீர்களா?`,
   },
   kn: {
-    complete: (o, d, date, details) => `ಸರಿ! ನೀವು ${o} ದಿಂದ ${d} ಗೆ ಪ್ರಯಾಣಿಸಲು ಬಯಸುತ್ತೀರಿ. ಲಭ್ಯವಿರುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ:`,
+    complete: (o, d) => `ಸರಿ! ನೀವು ${o} ದಿಂದ ${d} ಗೆ ಪ್ರಯಾಣಿಸಲು ಬಯಸುತ್ತೀರಿ. ಲಭ್ಯವಿರುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ:`,
     needOrigin: 'ದಯವಿಟ್ಟು ನೀವು ಹೊರಡುವ ನಗರವನ್ನು ತಿಳಿಸಿ.',
     needDest: (o) => `ಸರಿ! ನೀವು ${o} ದಿಂದ ಹೊರಡುತ್ತಿದ್ದೀರಿ. ಯಾವ ನಗರಕ್ಕೆ ಹೋಗಲು ಬಯಸುತ್ತೀರಿ?`,
     lowConfidencePrompt: (c) => `ನಿಮ್ಮ ಉದ್ದೇಶ ${c} ಎಂದೇ?`,
   },
   ml: {
-    complete: (o, d, date, details) => `ശരി! നിങ്ങൾ ${o} ൽ നിന്ന് ${d} ലേക്ക് യാത്ര ചെയ്യാൻ ആഗ്രഹിക്കുന്നു. ലഭ്യമായ ബസുകൾ കാണിക്കുന്നു:`,
+    complete: (o, d) => `ശരി! നിങ്ങൾ ${o} ൽ നിന്ന് ${d} ലേക്ക് യാത്ര ചെയ്യാൻ ആഗ്രഹിക്കുന്നു. ലഭ്യമായ ബസുകൾ കാണിക്കുന്നു:`,
     needOrigin: 'ദയവായി നിങ്ങൾ പുറപ്പെടുന്ന നഗരം പറയുക (ഉദാ: കൊച്ചി).',
     needDest: (o) => `ശരി! നിങ്ങൾ ${o} ൽ നിന്നാണ് പുറപ്പെടുന്നത്. ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്? (ഉദാ: വരംഗൽ).`,
     lowConfidencePrompt: (c) => `നിങ്ങൾ ${c} എന്നാണോ ഉദ്ദേശിച്ചത്?`,
   },
   mr: {
-    complete: (o, d, date, details) => `ठीक आहे! तुम्ही ${o} ते ${d} प्रवास करू इच्छिता. आम्ही तुम्हाला उपलब्ध बसेस दाखवत आहोत:`,
+    complete: (o, d) => `ठीक आहे! तुम्ही ${o} ते ${d} प्रवास करू इच्छिता. आम्ही तुम्हाला उपलब्ध बसेस दाखवत आहोत:`,
     needOrigin: 'कृपया प्रस्थान शहर सांगा.',
     needDest: (o) => `ठीक आहे! तुम्ही ${o} वरून निघत आहात. तुम्हाला कोणत्या शहरात जायचे आहे?`,
     lowConfidencePrompt: (c) => `तुमचा अर्थ ${c} असा आहे का?`,
   },
   gu: {
-    complete: (o, d, date, details) => `બરાબર! તમે ${o} થી ${d} ની મુસાફરી કરવા માંગો છો. તમને ઉપલબ્ધ બસો બતાવી રહ્યા છીએ:`,
+    complete: (o, d) => `બરાબર! તમે ${o} થી ${d} ની મુસાફરી કરવા માંગો છો. તમને ઉપલબ્ધ બસો બતાવી રહ્યા છીએ:`,
     needOrigin: 'કૃપા કરીને ઉપડવાનું શહેર જણાવો.',
     needDest: (o) => `બરાબર! તમે ${o} થી ઉપડી રહ્યા છો. તમે કયા શહેરે જવા માંગો છો?`,
     lowConfidencePrompt: (c) => `શું તમારો મતલબ ${c} છે?`,
   },
   bn: {
-    complete: (o, d, date, details) => `ঠিক আছে! আপনি ${o} থেকে ${d} ভ্রমণ করতে চান। উপলব্ধ বাসগুলি দেখানো হচ্ছে:`,
+    complete: (o, d) => `ঠিক আছে! আপনি ${o} থেকে ${d} ভ্রমণ করতে চান। উপলব্ধ বাসগুলি দেখানো হচ্ছে:`,
     needOrigin: 'অনুগ্রহ করে যাত্রার প্রারম্ভিক শহর জানান।',
     needDest: (o) => `ঠিক আছে! আপনি ${o} থেকে যাত্রা শুরু করছেন। আপনি কোন শহরে যেতে চান?`,
     lowConfidencePrompt: (c) => `আপনি কি ${c} বলতে চেয়েছেন?`,
   },
   ur: {
-    complete: (o, d, date, details) => `ٹھیک ہے! آپ ${o} سے ${d} کا سفر کرنا چاہتے ہیں۔ دستیاب بسیں دکھائی جا رہی ہیں۔`,
+    complete: (o, d) => `ٹھیک ہے! آپ ${o} سے ${d} کا سفر کرنا چاہتے ہیں۔ دستیاب بسیں دکھائی جا رہی ہیں۔`,
     needOrigin: 'براہ کرم روانگی کا شہر بتائیں۔',
     needDest: (o) => `ٹھیک ہے! آپ ${o} سے روانہ ہو رہے ہیں۔ آپ کس شہر جانا چاہتے ہیں؟`,
     lowConfidencePrompt: (c) => `کیا آپ کا مطلب ${c} ہے؟`,
   },
   pa: {
-    complete: (o, d, date, details) => `ਠੀਕ ਹੈ! ਤੁਸੀਂ ${o} ਤੋਂ ${d} ਜਾਣ ਦੀ ਯਾਤਰਾ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ। ਉਪਲਬਧ ਬੱਸਾਂ ਦਿਖਾਈਆਂ ਜਾ ਰਹੀਆਂ ਹਨ:`,
+    complete: (o, d) => `ਠੀਕ ਹੈ! ਤੁਸੀਂ ${o} ਤੋਂ ${d} ਜਾਣ ਦੀ ਯਾਤਰਾ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ। ਉਪਲਬਧ ਬੱਸਾਂ ਦਿਖਾਈਆਂ ਜਾ ਰਹੀਆਂ ਹਨ:`,
     needOrigin: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
     needDest: (o) => `ਠੀਕ ਹੈ! ਤੁਸੀਂ ${o} ਤੋਂ ਚੱਲ ਰਹੇ ਹੋ। ਤੁਸੀਂ ਕਿਸ ਸ਼ਹਿਰ ਜਾਣਾ ਚਾਹੁੰਦੇ ਹੋ?`,
     lowConfidencePrompt: (c) => `ਕੀ ਤੁਹਾਡਾ ਮਤਲਬ ${c} ਹੈ?`,
   },
   or: {
-    complete: (o, d, date, details) => `ଠିକ୍ ଅଛି! ଆପଣ ${o} ରୁ ${d} ଯାତ୍ରା କରିବାକୁ ଚାହାଁନ୍ତି। ବସ୍ ଗୁଡ଼ିକ ଦେଖାଯାଉଛି:`,
+    complete: (o, d) => `ଠିକ୍ ଅଛି! ଆପଣ ${o} ରୁ ${d} ଯାତ୍ରା କରିବାକୁ ଚାହାଁନ୍ତି। ବସ୍ ଗୁଡ଼ିକ ଦେଖାଯାଉଛି:`,
     needOrigin: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ସହର କୁହନ୍ତୁ।',
     needDest: (o) => `ଠିକ୍ ଅଛି! ଆପଣ ${o} ରୁ ବାହାରୁଛନ୍ତି। ଆପଣ କେଉଁ ସହରକୁ ଯିବେ?`,
     lowConfidencePrompt: (c) => `ଆପଣଙ୍କ ଅର୍ଥ ${c} କି?`,
   },
   en: {
-    complete: (o, d, date, details) => `Got it! You're planning to travel from ${o} to ${d} ${details ? details + ' ' : ''}. Showing available buses for you:`,
+    complete: (o, d) => `Got it! You're planning to travel from ${o} to ${d}. Showing available buses for you:`,
     needOrigin: 'Please specify your origin city (e.g., Vijayawada, Kochi, Hyderabad).',
     needDest: (o) => `Got it! You are departing from ${o}. Where would you like to travel to? (e.g. Hyderabad, Warangal).`,
     lowConfidencePrompt: (c) => `Did you mean ${c}? Please confirm.`,
   },
+};
+
+export function getResponseTemplate(lang: string): ResponseTemplate {
+  return RESPONSE_TEMPLATES[lang] || RESPONSE_TEMPLATES.en;
+}
+
+// "No direct buses on this route — here are connecting options" in all 12 languages.
+export const NO_DIRECT_MESSAGES: Record<string, (o: string, d: string) => string> = {
+  te: (o, d) => `${o} నుండి ${d} కు నేరుగా బస్సులు లేవు. ${o} నుండి ${d} కు కనెక్టింగ్ (బ్రేక్) ప్రయాణ మార్గాలను చూపిస్తున్నాము.`,
+  hi: (o, d) => `${o} से ${d} के लिए कोई सीधी बस नहीं है। हम आपको कनेक्टिंग (ब्रेक) यात्रा विकल्प दिखा रहे हैं।`,
+  ta: (o, d) => `${o} இலிருந்து ${d} க்கு நேரடி பேருந்துகள் இல்லை. இணைப்பு (பிரேக்) பயண வழிகளைக் காட்டுகிறோம்.`,
+  kn: (o, d) => `${o} ದಿಂದ ${d} ಗೆ ನೇರ ಬಸ್ ಇಲ್ಲ. ಸಂಪರ್ಕಿಸುವ (ಬ್ರೇಕ್) ಪ್ರಯಾಣ ಆಯ್ಕೆಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ.`,
+  ml: (o, d) => `${o} ൽ നിന്ന് ${d} ലേക്ക് നേരിട്ടുള്ള ബസുകൾ ഇല്ല. കണക്റ്റിംഗ് (ബ്രേക്ക്) യാത്രാ മാർഗങ്ങൾ കാണിക്കുന്നു.`,
+  mr: (o, d) => `${o} ते ${d} थेट बस नाही. आम्ही कनेक्टिंग (ब्रेक) प्रवास पर्याय दाखवत आहोत.`,
+  gu: (o, d) => `${o} થી ${d} માટે સીધી બસ નથી. અમે કનેક્ટિંગ (બ્રેક) મુસાફરી વિકલ્પો બતાવી રહ્યા છીએ.`,
+  bn: (o, d) => `${o} থেকে ${d} সরাসরি বাস নেই। আমরা সংযোগকারী (ব্রেক) যাত্রার বিকল্প দেখাচ্ছি।`,
+  ur: (o, d) => `${o} سے ${d} کے لیے کوئی براہ راست بس نہیں ہے۔ ہم کنیکٹنگ (بریک) سفر کے اختیارات دکھا رہے ہیں۔`,
+  pa: (o, d) => `${o} ਤੋਂ ${d} ਲਈ ਕੋਈ ਸਿੱਧੀ ਬੱਸ ਨਹੀਂ ਹੈ। ਅਸੀਂ ਕਨੈਕਟਿੰਗ (ਬ੍ਰੇਕ) ਯਾਤਰਾ ਵਿਕਲਪ ਦਿਖਾ ਰਹੇ ਹਾਂ।`,
+  or: (o, d) => `${o} ରୁ ${d} କୁ କୌଣସି ସିଧା ବସ୍ ନାହିଁ। ଆମେ ସଂଯୋଗକାରୀ (ବ୍ରେକ୍) ଯାତ୍ରା ବିକଳ୍ପ ଦେଖାଉଛୁ।`,
+  en: (o, d) => `No direct buses run from ${o} to ${d}. Showing connecting (break) journey options via a major hub.`,
+};
+
+// "Which leg would you like to book?" prompt shown when a connecting journey is picked.
+export const CONNECTING_CHOICE_PROMPT: Record<string, string> = {
+  te: 'ఈ కనెక్టింగ్ ప్రయాణానికి మీరు ఏమి చేయాలనుకుంటున్నారు? లెగ్ 1 బుక్ చేయాలా, లెగ్ 2 బుక్ చేయాలా, లేదా రెండింటినీ చూడాలా?',
+  hi: 'इस कनेक्टिंग यात्रा के लिए आप क्या करना चाहते हैं? लेग 1 बुक करें, लेग 2 बुक करें, या दोनों देखें?',
+  ta: 'இந்த இணைப்பு பயணத்திற்கு நீங்கள் என்ன செய்ய விரும்புகிறீர்கள்? லெக் 1 புக் செய்யவா, லெக் 2 புக் செய்யவா, அல்லது இரண்டையும் பார்க்கவா?',
+  kn: 'ಈ ಸಂಪರ್ಕ ಪ್ರಯಾಣಕ್ಕೆ ನೀವು ಏನು ಮಾಡಲು ಬಯಸುತ್ತೀರಿ? ಲೆಗ್ 1 ಬುಕ್ ಮಾಡಿ, ಲೆಗ್ 2 ಬುಕ್ ಮಾಡಿ, ಅಥವಾ ಎರಡನ್ನೂ ನೋಡಿ?',
+  ml: 'ഈ കണക്റ്റിംഗ് യാത്രയ്ക്ക് നിങ്ങൾ എന്ത് ചെയ്യാൻ ആഗ്രഹിക്കുന്നു? ലെഗ് 1 ബുക്ക് ചെയ്യണോ, ലെഗ് 2 ബുക്ക് ചെയ്യണോ, അതോ രണ്ടും കാണണോ?',
+  mr: 'या कनेक्टिंग प्रवासासाठी तुम्हाला काय करायचे आहे? लेग 1 बुक करा, लेग 2 बुक करा, की दोन्ही पहा?',
+  gu: 'આ કનેક્ટિંગ મુસાફરી માટે તમે શું કરવા માંગો છો? લેગ 1 બુક કરો, લેગ 2 બુક કરો, કે બંને જુઓ?',
+  bn: 'এই সংযোগকারী যাত্রার জন্য আপনি কী করতে চান? লেগ ১ বুক করুন, লেগ ২ বুক করুন, নাকি দুটোই দেখুন?',
+  ur: 'اس کنیکٹنگ سفر کے لیے آپ کیا کرنا چاہتے ہیں؟ لیگ 1 بک کریں، لیگ 2 بک کریں، یا دونوں دیکھیں؟',
+  pa: 'ਇਸ ਕਨੈਕਟਿੰਗ ਯਾਤਰਾ ਲਈ ਤੁਸੀਂ ਕੀ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ? ਲੈੱਗ 1 ਬੁੱਕ ਕਰੋ, ਲੈੱਗ 2 ਬੁੱਕ ਕਰੋ, ਜਾਂ ਦੋਵੇਂ ਵੇਖੋ?',
+  or: 'ଏହି ସଂଯୋଗକାରୀ ଯାତ୍ରା ପାଇଁ ଆପଣ କଣ କରିବାକୁ ଚାହାଁନ୍ତି? ଲେଗ୍ 1 ବୁକ୍ କରନ୍ତୁ, ଲେଗ୍ 2 ବୁକ୍ କରନ୍ତୁ, କିମ୍ବା ଦୁଇଟି ଦେଖନ୍ତୁ?',
+  en: 'For this connecting journey, what would you like to do — book Leg 1, book Leg 2, or view both?',
+};
+
+export const CONNECTING_CHOICE_LABELS: Record<
+  string,
+  { leg1: string; leg2: string; both: string; select: string }
+> = {
+  te: { leg1: 'లెగ్ 1 బుక్ చేయండి', leg2: 'లెగ్ 2 బుక్ చేయండి', both: 'రెండింటినీ చూడండి', select: 'ఈ మార్గాన్ని ఎంచుకోండి' },
+  hi: { leg1: 'लेग 1 बुक करें', leg2: 'लेग 2 बुक करें', both: 'दोनों देखें', select: 'यह मार्ग चुनें' },
+  ta: { leg1: 'லெக் 1 புக் செய்', leg2: 'லெக் 2 புக் செய்', both: 'இரண்டையும் பார்', select: 'இந்த வழியைத் தேர்வுசெய்' },
+  kn: { leg1: 'ಲೆಗ್ 1 ಬುಕ್ ಮಾಡಿ', leg2: 'ಲೆಗ್ 2 ಬುಕ್ ಮಾಡಿ', both: 'ಎರಡನ್ನೂ ನೋಡಿ', select: 'ಈ ಮಾರ್ಗ ಆಯ್ಕೆಮಾಡಿ' },
+  ml: { leg1: 'ലെഗ് 1 ബുക്ക് ചെയ്യുക', leg2: 'ലെഗ് 2 ബുക്ക് ചെയ്യുക', both: 'രണ്ടും കാണുക', select: 'ഈ വഴി തിരഞ്ഞെടുക്കുക' },
+  mr: { leg1: 'लेग 1 बुक करा', leg2: 'लेग 2 बुक करा', both: 'दोन्ही पहा', select: 'हा मार्ग निवडा' },
+  gu: { leg1: 'લેગ 1 બુક કરો', leg2: 'લેગ 2 બુક કરો', both: 'બંને જુઓ', select: 'આ માર્ગ પસંદ કરો' },
+  bn: { leg1: 'লেগ ১ বুক করুন', leg2: 'লেগ ২ বুক করুন', both: 'দুটোই দেখুন', select: 'এই পথ নির্বাচন করুন' },
+  ur: { leg1: 'لیگ 1 بک کریں', leg2: 'لیگ 2 بک کریں', both: 'دونوں دیکھیں', select: 'یہ راستہ منتخب کریں' },
+  pa: { leg1: 'ਲੈੱਗ 1 ਬੁੱਕ ਕਰੋ', leg2: 'ਲੈੱਗ 2 ਬੁੱਕ ਕਰੋ', both: 'ਦੋਵੇਂ ਵੇਖੋ', select: 'ਇਹ ਰਸਤਾ ਚੁਣੋ' },
+  or: { leg1: 'ଲେଗ୍ 1 ବୁକ୍ କରନ୍ତୁ', leg2: 'ଲେଗ୍ 2 ବୁକ୍ କରନ୍ତୁ', both: 'ଦୁଇଟି ଦେଖନ୍ତୁ', select: 'ଏହି ମାର୍ଗ ବାଛନ୍ତୁ' },
+  en: { leg1: 'Book Leg 1', leg2: 'Book Leg 2', both: 'View Both', select: 'Select this journey' },
 };
 
 export function processUserMessage(
@@ -296,12 +465,14 @@ export function processUserMessage(
 
   let updatedOrigin = currentState.origin;
   let updatedDest = currentState.destination;
-  let updatedDate = prefResult.date || currentState.date || new Date().toISOString().split('T')[0];
-  let updatedTime = prefResult.time || currentState.time;
-  let updatedBusType = prefResult.busType || currentState.busType;
-  let updatedSeatType = prefResult.seatType || currentState.seatType;
+  // Only overwrite a captured detail when the new utterance actually mentions it,
+  // so answering one follow-up never wipes what was already understood (BUG 2).
+  const updatedDate = prefResult.date || currentState.date || new Date().toISOString().split('T')[0];
+  const updatedTime = prefResult.time || currentState.time;
+  const updatedBusType = prefResult.busType || currentState.busType;
+  const updatedSeatType = prefResult.seatType || currentState.seatType;
 
-  // Context memory extraction
+  // Merge newly-heard cities with what we already have — never reset existing state.
   if (cityResult.cities.length >= 2) {
     updatedOrigin = cityResult.cities[0];
     updatedDest = cityResult.cities[1];
@@ -323,22 +494,22 @@ export function processUserMessage(
     ? CITY_TRANSLATIONS[updatedDest]?.[detectedLang] || updatedDest
     : '';
 
-  const langRes = MULTILINGUAL_RESPONSES[detectedLang] || MULTILINGUAL_RESPONSES['en'];
+  const langRes = getResponseTemplate(detectedLang);
   let responseText = '';
-  let breakRoutes: BreakJourneyRoute[] = [];
 
   const detailsList: string[] = [];
-  if (updatedDate && updatedDate !== new Date().toISOString().split('T')[0]) detailsList.push('Tomorrow');
+  if (prefResult.date && prefResult.date !== new Date().toISOString().split('T')[0]) detailsList.push(prefResult.date);
   if (updatedTime) detailsList.push(updatedTime);
   if (updatedBusType) detailsList.push(updatedBusType);
   if (updatedSeatType) detailsList.push(updatedSeatType);
-  const detailsStr = detailsList.join(' ');
+  const detailsStr = detailsList.join(' · ');
 
   if (cityResult.confidence === 'low' && cityResult.lowConfCity && !isComplete) {
     responseText = langRes.lowConfidencePrompt(cityResult.lowConfCity);
   } else if (isComplete) {
-    responseText = langRes.complete(originNative, destNative, updatedDate, detailsStr);
-    breakRoutes = computeBreakJourneyRoutes(updatedOrigin!, updatedDest!, updatedDate);
+    // Confirm the parsed route; the Results page decides direct vs connecting and
+    // shows the connecting (break) journeys when there are no direct buses (BUG 4).
+    responseText = (detailsStr ? detailsStr + ' — ' : '') + langRes.complete(originNative, destNative);
   } else if (!updatedOrigin) {
     responseText = langRes.needOrigin;
   } else {
@@ -356,7 +527,7 @@ export function processUserMessage(
       : updatedOrigin
       ? [`🚌 ${updatedOrigin} to Hyderabad`, `🚌 ${updatedOrigin} to Warangal`, `🚌 ${updatedOrigin} to Bengaluru`]
       : ['🚌 Vijayawada to Hyderabad', '🚌 Kochi to Warangal', '🚌 Visakhapatnam to Hyderabad'],
-    breakRoutes: breakRoutes.length > 0 ? breakRoutes : undefined,
+    breakRoutes: undefined,
   };
 
   const nextState: ConversationState = {
