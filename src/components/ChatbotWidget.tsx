@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, X, Send, Mic, Square, Sparkles, Volume2, MapPin, Bus, ExternalLink, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useSearch } from '../context/SearchContext';
 import { processUserMessage, ChatMessage, ConversationState, getNearbyBoardingPoints } from '../lib/agenticAiService';
 
 export default function ChatbotWidget() {
   const navigate = useNavigate();
   const { currentLanguage, setLanguage, t } = useLanguage();
+  const { session, updateSession } = useSearch();
 
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -14,13 +16,13 @@ export default function ChatbotWidget() {
   const [isTyping, setIsTyping] = useState(false);
 
   const [state, setState] = useState<ConversationState>({
-    origin: null,
-    destination: null,
-    date: new Date().toISOString().split('T')[0],
-    time: null,
-    busType: null,
-    seatType: null,
-    maxBudget: null,
+    origin: session.source,
+    destination: session.destination,
+    date: session.date || new Date().toISOString().split('T')[0],
+    time: session.time,
+    busType: session.busType,
+    seatType: session.seatType,
+    maxBudget: session.maxBudget,
     language: currentLanguage,
     step: 'origin',
     confidence: 'high',
@@ -93,13 +95,30 @@ export default function ChatbotWidget() {
     setIsTyping(true);
 
     setTimeout(() => {
-      const { responseMessage, nextState } = processUserMessage(query, state);
+      const currentState: ConversationState = {
+        ...state,
+        origin: session.source || state.origin,
+        destination: session.destination || state.destination,
+        date: session.date || state.date,
+      };
+
+      const { responseMessage, nextState } = processUserMessage(query, currentState);
 
       if (nextState.language !== currentLanguage) {
         setLanguage(nextState.language);
       }
 
       setState(nextState);
+      updateSession({
+        source: nextState.origin,
+        destination: nextState.destination,
+        date: nextState.date || session.date,
+        time: nextState.time,
+        busType: nextState.busType,
+        seatType: nextState.seatType,
+        language: nextState.language,
+      });
+
       setMessages((prev) => [...prev, responseMessage]);
       setIsTyping(false);
 
@@ -109,7 +128,7 @@ export default function ChatbotWidget() {
         const params = new URLSearchParams({
           origin: nextState.origin,
           destination: nextState.destination,
-          date: nextState.date || new Date().toISOString().split('T')[0],
+          date: nextState.date || session.date || new Date().toISOString().split('T')[0],
         });
         setTimeout(() => {
           setIsOpen(false);
@@ -124,7 +143,7 @@ export default function ChatbotWidget() {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            const nearby = getNearbyBoardingPoints(state.origin || 'Visakhapatnam');
+            const nearby = getNearbyBoardingPoints(session.source || state.origin || 'Visakhapatnam');
             const locMsg: ChatMessage = {
               id: `loc-${Date.now()}`,
               sender: 'assistant',

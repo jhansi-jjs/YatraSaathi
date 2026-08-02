@@ -3,6 +3,7 @@ import { Star, Clock, Users, Snowflake, Fan, ExternalLink } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import { getSessionId } from '../lib/session';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
 import { supabase } from '../lib/supabase';
 import { buildOtaDeepLink, OTA_NAMES } from '../lib/ota';
 
@@ -23,10 +24,11 @@ const OTA_COLORS: Record<string, string> = {
 export default function BusCard({ listing, index }: BusCardProps) {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { session } = useSearch();
 
-  const searchOrigin = searchParams.get('origin') || undefined;
-  const searchDestination = searchParams.get('destination') || undefined;
-  const searchDate = searchParams.get('date') || undefined;
+  const searchOrigin = searchParams.get('origin') || session.source || undefined;
+  const searchDestination = searchParams.get('destination') || session.destination || undefined;
+  const searchDate = searchParams.get('date') || session.date || undefined;
 
   const handleDirectOtaRedirect = async () => {
     const deepLink = buildOtaDeepLink(listing, searchOrigin, searchDestination, searchDate);

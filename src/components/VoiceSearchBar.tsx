@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle, Bug, ChevronDown, ChevronUp, Terminal, CheckCircle2 } from 'lucide-react';
+import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle, Bug, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
+import { useSearch } from '../context/SearchContext';
 import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText } from '../lib/agenticAiService';
 import { buildOtaDeepLink, OTA_LIST } from '../lib/ota';
 
@@ -52,19 +53,19 @@ export const CITY_ALIASES: Record<string, string> = {
   രാജമണ്ഡ്രി: 'Rajahmundry', રાજામુંડરી: 'Rajahmundry',
 
   // Kakinada
-  kakinada: 'Kakinada', కాకినాడ: 'Kakinada', काकीनाडा: 'Kakinada', காக்கிநாடா: 'Kakinada',
+  kakinada: 'Kakinada', కాకినాడ: 'Kakinada', काकीनाडा: 'Kakinada', காక్కిநாடா: 'Kakinada',
   ಕಾಕಿನಾಡ: 'Kakinada', കാക്കിനട: 'Kakinada', કાકીનાડા: 'Kakinada',
 
   // Nellore
   nellore: 'Nellore', నెల్లూరు: 'Nellore', नेल्लोर: 'Nellore', நெல்லூர்: 'Nellore',
-  ನೆಲ್ಲూరు: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
+  ನೆಲ್ಲೂರು: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
 
   // Kurnool
   kurnool: 'Kurnool', కర్నూలు: 'Kurnool', कुर्नूल: 'Kurnool', கர்நூல்: 'Kurnool',
   ಕರ್ನೂಲು: 'Kurnool', കർണൂൽ: 'Kurnool', કુર્નૂલ: 'Kurnool',
 
   // Anantapur
-  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தపూర్: 'Anantapur',
+  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தபூர்: 'Anantapur',
   ಅನಂತಪುರ: 'Anantapur', അനന്തപൂർ: 'Anantapur', અનંતપુર: 'Anantapur',
 
   // Warangal
@@ -100,17 +101,17 @@ export const CITY_ALIASES: Record<string, string> = {
   കൊച്ചി: 'Kochi', കോચી: 'Kochi',
 
   // Coimbatore
-  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
+  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटூர்: 'Coimbatore',
   கோயம்புத்தூர்: 'Coimbatore', ಕೋಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
   કોઈમ્બતૂર: 'Coimbatore',
 
   // Madurai
   madurai: 'Madurai', మదురై: 'Madurai', मदेरै: 'Madurai', मदुरै: 'Madurai',
-  மதுரை: 'Madurai', ಮಧుರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
+  மதுரை: 'Madurai', ಮಧುರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
 
   // Mysuru
   mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
-  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூರು: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
+  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூரு: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
   മൈസൂരു: 'Mysuru', മૈસુરુ: 'Mysuru',
 };
 
@@ -141,7 +142,7 @@ const STOP_KEYWORDS = [
   'থামুন', 'സ്റ്റപ്',
   'روکیں', 'سٹاپ',
   'ਰੋਕੋ', 'ਸਟਾਪ',
-  'ରଖନ୍ତୁ', 'ଷ୍ଟପ୍'
+  'రଖନ୍ତୁ', 'ଷ୍ଟପ୍'
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
@@ -218,6 +219,7 @@ interface PipelineLog {
 export default function VoiceSearchBar() {
   const navigate = useNavigate();
   const { currentLanguage, setLanguage, t } = useLanguage();
+  const { session, updateSession, setSearchRoute } = useSearch();
 
   const [languages, setLanguages] = useState<LanguageOption[]>(SUPPORTED_LANGUAGES);
   const [isRecording, setIsRecording] = useState(false);
@@ -232,9 +234,6 @@ export default function VoiceSearchBar() {
   const [pipelineLogs, setPipelineLogs] = useState<PipelineLog[]>([]);
   const [debugEntities, setDebugEntities] = useState<any>({});
   const [debugOtaUrls, setDebugOtaUrls] = useState<Record<string, string>>({});
-
-  // Context memory across user voice turns
-  const [sessionOrigin, setSessionOrigin] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -333,7 +332,7 @@ export default function VoiceSearchBar() {
           const lowerText = currentText.toLowerCase();
 
           for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
+            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('<ctrl42>బದಲಾಯಿಸಿ'))) {
               setLanguage(langCode);
               addPipelineLog('4. Lang Switch', `Auto switched voice language to: ${langCode}`, 'info');
             }
@@ -442,7 +441,7 @@ export default function VoiceSearchBar() {
       'info'
     );
 
-    let origin: string | null = currentContextOrigin || null;
+    let origin: string | null = currentContextOrigin || session.source || null;
     let destination: string | null = null;
 
     if (cityResult.cities.length >= 2) {
@@ -455,6 +454,20 @@ export default function VoiceSearchBar() {
       } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
         destination = singleCity;
       }
+    }
+
+    // Synchronize to global SearchSession!
+    if (origin || destination) {
+      updateSession({
+        source: origin || session.source,
+        destination: destination || session.destination,
+        date: prefResult.date || session.date,
+        time: prefResult.time || session.time,
+        busType: prefResult.busType || session.busType,
+        seatType: prefResult.seatType || session.seatType,
+        language: lang,
+      });
+      addPipelineLog('Global SearchSession Sync', `Updated SearchSession: From=${origin || 'N/A'}, To=${destination || 'N/A'}`, 'success');
     }
 
     const ready = Boolean(origin && destination);
@@ -479,7 +492,7 @@ export default function VoiceSearchBar() {
 
     // Build debug OTA URLs
     if (origin && destination) {
-      const dateVal = prefResult.date || new Date().toISOString().split('T')[0];
+      const dateVal = prefResult.date || session.date || new Date().toISOString().split('T')[0];
       const urls: Record<string, string> = {};
       OTA_LIST.forEach((ota) => {
         urls[ota] = buildOtaDeepLink({ ota_source: ota }, origin, destination, dateVal);
@@ -493,10 +506,10 @@ export default function VoiceSearchBar() {
       detectedLang: lang,
       origin,
       destination,
-      date: prefResult.date,
-      time: prefResult.time,
-      busType: prefResult.busType,
-      seatType: prefResult.seatType,
+      date: prefResult.date || session.date,
+      time: prefResult.time || session.time,
+      busType: prefResult.busType || session.busType,
+      seatType: prefResult.seatType || session.seatType,
       confidence: cityResult.confidence,
       readyToSearch: ready,
     });
@@ -506,10 +519,10 @@ export default function VoiceSearchBar() {
       intent: {
         origin,
         destination,
-        date: prefResult.date,
-        time: prefResult.time,
-        busType: prefResult.busType,
-        seatType: prefResult.seatType,
+        date: prefResult.date || session.date,
+        time: prefResult.time || session.time,
+        busType: prefResult.busType || session.busType,
+        seatType: prefResult.seatType || session.seatType,
         language: lang,
         clarification_needed: ready ? null : spoken,
       },
@@ -522,11 +535,7 @@ export default function VoiceSearchBar() {
   function processTextDirectly(text: string) {
     setIsProcessing(true);
     addPipelineLog('4. NLU Processing', `Processing transcript: "${text}"`, 'info');
-    const parsed = clientSideParseIntent(text, currentLanguage, sessionOrigin);
-
-    if (parsed.intent.origin) {
-      setSessionOrigin(parsed.intent.origin);
-    }
+    const parsed = clientSideParseIntent(text, currentLanguage, session.source);
 
     setTranscript(parsed.transcript);
     setSpokenText(parsed.spoken_text);
@@ -576,8 +585,12 @@ export default function VoiceSearchBar() {
       setSpokenText(data.spoken_text);
       setNeedsClarification(data.needs_clarification);
 
-      if (data.intent?.origin) {
-        setSessionOrigin(data.intent.origin);
+      if (data.intent?.origin && data.intent?.destination) {
+        updateSession({
+          source: data.intent.origin,
+          destination: data.intent.destination,
+          date: data.intent.date || session.date,
+        });
       }
 
       if (data.intent?.language && data.intent.language !== currentLanguage) {
@@ -702,7 +715,7 @@ export default function VoiceSearchBar() {
               <span>🐞 Developer Voice Pipeline Debug Panel</span>
             </div>
             <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
-              Active Logging
+              Global SearchSession Active
             </span>
           </div>
 
@@ -719,11 +732,11 @@ export default function VoiceSearchBar() {
             </div>
             <div className="bg-white/5 p-2 rounded border border-white/10">
               <span className="text-slate-400 block">Origin City:</span>
-              <span className="font-bold text-amber-300">{debugEntities.origin || 'Not Extracted'}</span>
+              <span className="font-bold text-amber-300">{session.source || 'Not Extracted'}</span>
             </div>
             <div className="bg-white/5 p-2 rounded border border-white/10">
               <span className="text-slate-400 block">Destination City:</span>
-              <span className="font-bold text-purple-300">{debugEntities.destination || 'Not Extracted'}</span>
+              <span className="font-bold text-purple-300">{session.destination || 'Not Extracted'}</span>
             </div>
           </div>
 

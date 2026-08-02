@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { SearchProvider } from './context/SearchContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -43,9 +44,11 @@ export default function App() {
   return (
     <AuthProvider>
       <LanguageProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
+        <SearchProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </SearchProvider>
       </LanguageProvider>
     </AuthProvider>
   );

@@ -5,8 +5,9 @@ import type { BusListingWithRoute } from '../lib/types';
 import SearchForm from '../components/SearchForm';
 import BusCard from '../components/BusCard';
 import FilterPanel, { FilterState } from '../components/FilterPanel';
-import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ArrowRight, ExternalLink, Sparkles, MapPin, Calendar, Clock, Award } from 'lucide-react';
+import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink, Sparkles, Clock, Award } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useSearch } from '../context/SearchContext';
 import { computeBreakJourneyRoutes, BreakJourneyRoute } from '../lib/breakJourneyService';
 import { buildOtaDeepLink } from '../lib/ota';
 
@@ -91,10 +92,17 @@ function generateDynamicListings(origin: string, destination: string, travelDate
 export default function ResultsPage() {
   const [searchParams] = useSearchParams();
   const { t, getCityName } = useLanguage();
+  const { session, setSearchRoute } = useSearch();
   
-  const origin = searchParams.get('origin') || '';
-  const destination = searchParams.get('destination') || '';
-  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const origin = searchParams.get('origin') || session.source || '';
+  const destination = searchParams.get('destination') || session.destination || '';
+  const date = searchParams.get('date') || session.date || new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    if (origin && destination) {
+      setSearchRoute(origin, destination, date);
+    }
+  }, [origin, destination, date]);
 
   const [listings, setListings] = useState<BusListingWithRoute[]>([]);
   const [breakRoutes, setBreakRoutes] = useState<BreakJourneyRoute[]>([]);
@@ -221,7 +229,7 @@ export default function ResultsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <SearchForm compact initialParams={{ origin, destination, date }} />
+      <SearchForm compact />
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
