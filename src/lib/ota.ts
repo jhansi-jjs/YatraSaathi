@@ -23,19 +23,24 @@ export function buildOtaDeepLink(
   overrideDestination?: string,
   overrideDate?: string
 ): string {
-  const rawOrigin =
+  let rawOrigin =
     overrideOrigin ||
     listing.routes?.origin_city ||
     listing.origin_city ||
     listing.origin ||
     'Visakhapatnam';
 
-  const rawDestination =
+  let rawDestination =
     overrideDestination ||
     listing.routes?.destination_city ||
     listing.destination_city ||
     listing.destination ||
     'Hyderabad';
+
+  // Prevent same city pair from breaking OTA search routing
+  if (rawOrigin.toLowerCase() === rawDestination.toLowerCase()) {
+    rawDestination = rawOrigin.toLowerCase() === 'visakhapatnam' ? 'Hyderabad' : 'Visakhapatnam';
+  }
 
   const travelDate =
     overrideDate ||

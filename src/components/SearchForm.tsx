@@ -43,15 +43,22 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
   const [date, setDate] = useState(
     initialParams?.date || new Date().toISOString().split('T')[0]
   );
+  const [errorMsg, setErrorMsg] = useState('');
 
   const swap = () => {
     setOrigin(destination);
     setDestination(origin);
+    setErrorMsg('');
   };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!origin || !destination || !date) return;
+    if (origin.toLowerCase() === destination.toLowerCase()) {
+      setErrorMsg('Origin and Destination cities must be different.');
+      return;
+    }
+    setErrorMsg('');
     const params = new URLSearchParams({ origin, destination, date });
     navigate(`/search?${params.toString()}`);
   };
@@ -63,7 +70,7 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
       <form onSubmit={handleSubmit} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
         <div className="flex-1">
           <label className="mb-1 block text-xs font-semibold text-slate-500">{t('fromLabel')}</label>
-          <select value={origin} onChange={(e) => setOrigin(e.target.value)} className="input-field" required>
+          <select value={origin} onChange={(e) => { setOrigin(e.target.value); setErrorMsg(''); }} className="input-field" required>
             <option value="">{t('selectOrigin')}</option>
             {CITIES.map((c) => (
               <option key={c} value={c}>
@@ -77,7 +84,7 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
         </button>
         <div className="flex-1">
           <label className="mb-1 block text-xs font-semibold text-slate-500">{t('toLabel')}</label>
-          <select value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field" required>
+          <select value={destination} onChange={(e) => { setDestination(e.target.value); setErrorMsg(''); }} className="input-field" required>
             <option value="">{t('selectDestination')}</option>
             {CITIES.map((c) => (
               <option key={c} value={c}>
@@ -99,11 +106,16 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
 
   return (
     <form onSubmit={handleSubmit} className="card grid grid-cols-1 gap-4 p-6 md:grid-cols-[1fr_auto_1fr_1fr_auto]">
+      {errorMsg && (
+        <div className="col-span-full rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-600">
+          ⚠️ {errorMsg}
+        </div>
+      )}
       <div>
         <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
           <MapPin className="h-3.5 w-3.5 text-blue-500" /> {t('fromLabel')}
         </label>
-        <select value={origin} onChange={(e) => setOrigin(e.target.value)} className="input-field text-base font-medium" required>
+        <select value={origin} onChange={(e) => { setOrigin(e.target.value); setErrorMsg(''); }} className="input-field text-base font-medium" required>
           <option value="">{t('selectOrigin')}</option>
           {CITIES.map((c) => (
             <option key={c} value={c}>
@@ -121,7 +133,7 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
         <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
           <Navigation className="h-3.5 w-3.5 text-emerald-500" /> {t('toLabel')}
         </label>
-        <select value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field text-base font-medium" required>
+        <select value={destination} onChange={(e) => { setDestination(e.target.value); setErrorMsg(''); }} className="input-field text-base font-medium" required>
           <option value="">{t('selectDestination')}</option>
           {CITIES.map((c) => (
             <option key={c} value={c}>
