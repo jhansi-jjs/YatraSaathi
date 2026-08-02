@@ -41,7 +41,7 @@ export const CITY_ALIASES: Record<string, string> = {
   ತಿರುಪತಿ: 'Tirupati', തിരുപ്പതി: 'Tirupati', તિરુપતિ: 'Tirupati',
 
   // Guntur
-  guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', குண்டூர்: 'Guntur',
+  guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', గుండూర్: 'Guntur',
   ಗುಂಟೂರು: 'Guntur', ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
 
   // Rajahmundry
@@ -70,8 +70,8 @@ export const CITY_ALIASES: Record<string, string> = {
   ವರಂಗಲ್: 'Warangal', വരംഗൽ: 'Warangal', વરંગલ: 'Warangal',
 
   // Karimnagar
-  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar', கரீம்நகர்: 'Karimnagar',
-  ಕರೀಂನಗರ: 'Karimnagar', കരീംനഗർ: 'Karimnagar', કરીમનગર: 'Karimnagar',
+  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar', కరీంநகர்: 'Karimnagar',
+  ಕರೀಂನಗರ: 'Karimnagar', కరీంనഗർ: 'Karimnagar', કરીમનગર: 'Karimnagar',
 
   // Mumbai
   mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
@@ -80,11 +80,11 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Pune
   pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
-  புனே: 'Pune', ಪುಣೆ: 'Pune', പുനെ: 'Pune', પુણે: 'Pune',
+  புனே: 'Pune', పుಣೆ: 'Pune', പുനെ: 'Pune', પુણે: 'Pune',
 
   // Delhi
   delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
-  दिल्ली: 'Delhi', दिल्लि: 'Delhi', டெல்லி: 'Delhi', ದೆಹಲಿ: 'Delhi',
+  दिल्ली: 'Delhi', दिल्लि: 'Delhi', டெல்லி: 'Delhi', దెహలి: 'Delhi',
   ഡൽഹി: 'Delhi', દિલ્હી: 'Delhi',
 
   // Kolkata
@@ -94,8 +94,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Kochi
   kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
-  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi', ಕೊಚ್ಚಿ: 'Kochi',
-  കൊച്ചി: 'Kochi', કોચી: 'Kochi',
+  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi', കൊച്ചി: 'Kochi', കോચી: 'Kochi',
 
   // Coimbatore
   coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
@@ -136,7 +135,7 @@ const STOP_KEYWORDS = [
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
   'थांबा', 'स्टॉप',
   'રોકો', 'સ્ટોપ',
-  'থামুন', 'স্টপ',
+  'থামুন', 'സ്റ്റപ്',
   'روکیں', 'سٹاپ',
   'ਰੋਕੋ', 'ਸਟਾਪ',
   'ରଖନ୍ତୁ', 'ଷ୍ଟପ୍'
@@ -203,7 +202,6 @@ function clientSideParseIntent(text: string, defaultLang: string) {
   const lower = text.toLowerCase().trim();
   let lang = defaultLang;
 
-  // Auto-detect spoken language from script or keywords
   if (/[\u0C00-\u0C7F]/.test(text)) lang = 'te';
   else if (/[\u0900-\u097F]/.test(text)) lang = 'hi';
   else if (/[\u0B80-\u0BFF]/.test(text)) lang = 'ta';
@@ -222,7 +220,6 @@ function clientSideParseIntent(text: string, defaultLang: string) {
     }
   }
 
-  // Multilingual substring matching for all city aliases
   const foundCities: string[] = [];
   for (const [alias, canonicalCity] of Object.entries(CITY_ALIASES)) {
     if (lower.includes(alias.toLowerCase()) && !foundCities.includes(canonicalCity)) {
@@ -260,7 +257,6 @@ function clientSideParseIntent(text: string, defaultLang: string) {
 
   const ready = Boolean(origin && destination);
 
-  // Get translated city names for natural regional spoken confirmation
   const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
   const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
 
@@ -359,14 +355,12 @@ export default function VoiceSearchBar() {
 
           const lowerText = currentText.toLowerCase();
 
-          // Check if user asked to change language
           for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
             if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
               setLanguage(langCode);
             }
           }
 
-          // Check for multilingual voice stop commands
           for (const stopWord of STOP_KEYWORDS) {
             if (lowerText.includes(stopWord)) {
               const cleanedText = currentText.replace(new RegExp(stopWord, 'gi'), '').trim();
@@ -455,12 +449,10 @@ export default function VoiceSearchBar() {
     setSpokenText(parsed.spoken_text);
     setNeedsClarification(parsed.needs_clarification);
 
-    // Sync app language to spoken language
     if (parsed.intent.language !== currentLanguage) {
       setLanguage(parsed.intent.language);
     }
 
-    // Speak back in the target regional language
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
@@ -469,7 +461,7 @@ export default function VoiceSearchBar() {
         destination: parsed.intent.destination,
         date: parsed.intent.date,
       });
-      setTimeout(() => navigate(`/search?${params.toString()}`), 1500);
+      setTimeout(() => navigate(`/results?${params.toString()}`), 1500);
     }
 
     setIsProcessing(false);
@@ -509,7 +501,7 @@ export default function VoiceSearchBar() {
           destination: data.intent.destination,
           date: data.intent.date || new Date().toISOString().split('T')[0],
         });
-        setTimeout(() => navigate(`/search?${params.toString()}`), 1500);
+        setTimeout(() => navigate(`/results?${params.toString()}`), 1500);
       }
     } catch (err) {
       console.log('Backend unreachable, using instant local resolution');

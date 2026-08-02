@@ -60,7 +60,7 @@ export default function SearchForm({ initialParams, compact = false }: SearchFor
     }
     setErrorMsg('');
     const params = new URLSearchParams({ origin, destination, date });
-    navigate(`/search?${params.toString()}`);
+    navigate(`/results?${params.toString()}`);
   };
 
   const today = new Date().toISOString().split('T')[0];
