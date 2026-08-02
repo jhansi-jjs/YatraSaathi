@@ -44,8 +44,33 @@ export default function ChatbotWidget() {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang =
-      langCode === 'te' ? 'te-IN' : langCode === 'hi' ? 'hi-IN' : langCode === 'ta' ? 'ta-IN' : 'en-IN';
+    
+    const targetLang =
+      langCode === 'te' ? 'te-IN'
+      : langCode === 'hi' ? 'hi-IN'
+      : langCode === 'ta' ? 'ta-IN'
+      : langCode === 'kn' ? 'kn-IN'
+      : langCode === 'ml' ? 'ml-IN'
+      : langCode === 'mr' ? 'mr-IN'
+      : langCode === 'gu' ? 'gu-IN'
+      : langCode === 'bn' ? 'bn-IN'
+      : langCode === 'ur' ? 'ur-IN'
+      : langCode === 'pa' ? 'pa-IN'
+      : langCode === 'or' ? 'or-IN'
+      : 'en-IN';
+
+    utterance.lang = targetLang;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      const matchedVoice = voices.find((v) =>
+        v.lang.toLowerCase().replace('_', '-').startsWith(targetLang.substring(0, 2).toLowerCase())
+      );
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+    }
+
     window.speechSynthesis.speak(utterance);
   }
 
@@ -134,6 +159,16 @@ export default function ChatbotWidget() {
           ? 'hi-IN'
           : currentLanguage === 'ta'
           ? 'ta-IN'
+          : currentLanguage === 'kn'
+          ? 'kn-IN'
+          : currentLanguage === 'ml'
+          ? 'ml-IN'
+          : currentLanguage === 'mr'
+          ? 'mr-IN'
+          : currentLanguage === 'gu'
+          ? 'gu-IN'
+          : currentLanguage === 'bn'
+          ? 'bn-IN'
           : 'en-IN';
 
       recog.onresult = (event: any) => {

@@ -1,5 +1,4 @@
 import { CITY_ALIASES } from '../components/VoiceSearchBar';
-import { CITIES } from '../components/SearchForm';
 import { computeBreakJourneyRoutes, BreakJourneyRoute } from './breakJourneyService';
 
 export interface ChatMessage {
@@ -61,6 +60,74 @@ export function getNearbyBoardingPoints(city: string): string[] {
   return BOARDING_POINTS[city] || ['Main Bus Station', 'City Central Stop'];
 }
 
+// Complete Multilingual Native Response Matrix for 12 Indian Languages
+const MULTILINGUAL_RESPONSES: Record<string, {
+  complete: (o: string, d: string, date: string) => string;
+  needOrigin: string;
+  needDest: (o: string) => string;
+}> = {
+  te: {
+    complete: (o, d) => `మీకు ${o} నుండి ${d} వెళ్లే లభ్యత ఉన్న బస్సులను చూపిస్తున్నాను. direct బస్సులు మరియు smart ప్రత్యామ్నాయ మార్గాలు ఇక్కడ ఉన్నాయి:`,
+    needOrigin: 'దయచేసి మీరు ఏ నగరం నుండి బయలుదేరాలనుకుంటున్నారో చెప్పండి (ఉదా: వైజాగ్, హైదరాబాద్).',
+    needDest: (o) => `మీరు ${o} నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారు? (ఉదా: హైదరాబాద్, విజయవాడ).`,
+  },
+  hi: {
+    complete: (o, d) => `हम आपको ${o} से ${d} जाने वाली उपलब्ध बसें दिखा रहे हैं। डायरेक्ट और कनेक्टिंग रूट्स नीचे दिए गए हैं:`,
+    needOrigin: 'कृपया बताएं कि आप किस शहर से यात्रा शुरू करना चाहते हैं (जैसे: दिल्ली, मुंबई, विशाखापट्टनम)।',
+    needDest: (o) => `${o} से आप किस शहर जाना चाहते हैं? (जैसे: जयपुर, हैदराबाद)।`,
+  },
+  ta: {
+    complete: (o, d) => `நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்:`,
+    needOrigin: 'தயவுசெய்து நீங்கள் புறப்படும் நகரத்தைக் கூறுங்கள்.',
+    needDest: (o) => `${o} இலிருந்து நீங்கள் எந்த நகரத்திற்குச் செல்ல விரும்புகிறீர்கள்?`,
+  },
+  kn: {
+    complete: (o, d) => `ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಲಭ್ಯವಿರುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ:`,
+    needOrigin: 'ದಯವಿಟ್ಟು ನೀವು ಹೊರಡುವ ನಗರವನ್ನು ತಿಳಿಸಿ.',
+    needDest: (o) => `${o} ದಿಂದ ನೀವು ಯಾವ ನಗರಕ್ಕೆ ಹೋಗಲು ಬಯಸುತ್ತೀರಿ?`,
+  },
+  ml: {
+    complete: (o, d) => `ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ലഭ്യമായ ബസുകൾ കാണിക്കുന്നു:`,
+    needOrigin: 'ദയവായി നിങ്ങൾ പുറപ്പെടുന്ന നഗരം പറയുക.',
+    needDest: (o) => `${o} ൽ നിന്ന് ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്?`,
+  },
+  mr: {
+    complete: (o, d) => `आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत:`,
+    needOrigin: 'कृपया प्रस्थान शहर सांगा.',
+    needDest: (o) => `${o} वरून तुम्हाला कोणत्या शहरात जायचे आहे?`,
+  },
+  gu: {
+    complete: (o, d) => `અમે તમને ${o} થી ${d} જતી ઉપલબ્ધ બસો બતાવી રહ્યા છીએ:`,
+    needOrigin: 'કૃપા કરીને ઉપડવાનું શહેર જણાવો.',
+    needDest: (o) => `${o} થી તમે કયા શહેરે જવા માંગો છો?`,
+  },
+  bn: {
+    complete: (o, d) => `আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি:`,
+    needOrigin: 'অনুগ্রহ করে যাত্রার প্রারম্ভিক শহর জানান।',
+    needDest: (o) => `${o} থেকে আপনি কোন শহরে যেতে চান?`,
+  },
+  ur: {
+    complete: (o, d) => `ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں:`,
+    needOrigin: 'براہ کرم روانگی کا شہر بتائیں۔',
+    needDest: (o) => `${o} سے آپ کس شہر جانا چاہتے ہیں؟`,
+  },
+  pa: {
+    complete: (o, d) => `ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ:`,
+    needOrigin: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
+    needDest: (o) => `${o} ਤੋਂ ਤੁਸੀਂ ਕਿਸ ਸ਼ਹਿਰ ਜਾਣਾ ਚਾਹੁੰਦੇ ਹੋ?`,
+  },
+  or: {
+    complete: (o, d) => `ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ:`,
+    needOrigin: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ସହର କୁହନ୍ତୁ।',
+    needDest: (o) => `${o} ରୁ ଆପଣ କେଉଁ ସହରକୁ ଯିବାକୁ ଚାହାଁନ୍ତି?`,
+  },
+  en: {
+    complete: (o, d) => `Showing available buses and smart connecting routes from ${o} to ${d}:`,
+    needOrigin: 'Please tell me your origin city (e.g. Visakhapatnam, Hyderabad).',
+    needDest: (o) => `Where would you like to travel from ${o}? (e.g. Hyderabad, Vijayawada).`,
+  },
+};
+
 export function processUserMessage(
   userText: string,
   currentState: ConversationState
@@ -88,37 +155,17 @@ export function processUserMessage(
 
   const isComplete = Boolean(updatedOrigin && updatedDest);
 
+  const langRes = MULTILINGUAL_RESPONSES[detectedLang] || MULTILINGUAL_RESPONSES['en'];
   let responseText = '';
   let breakRoutes: BreakJourneyRoute[] = [];
 
   if (isComplete) {
-    if (detectedLang === 'te') {
-      responseText = `మీకు ${updatedOrigin} నుండి ${updatedDest} కు లభించే బస్సు వివరాలను చూపిస్తున్నాను. direct బస్సులు మరియు ప్రత్యామ్నాయ రూట్‌లు ఇక్కడ ఉన్నాయి:`;
-    } else if (detectedLang === 'hi') {
-      responseText = `हम आपको ${updatedOrigin} से ${updatedDest} के लिए उपलब्ध बसें दिखा रहे हैं। डायरेक्ट और कनेक्टिंग रूट्स नीचे दिए गए हैं:`;
-    } else if (detectedLang === 'ta') {
-      responseText = `நாங்கள் உங்களுக்கு ${updatedOrigin} இலிருந்து ${updatedDest} செல்லக்கூடிய பேருந்துகளைக் காட்டுகிறோம்:`;
-    } else {
-      responseText = `I have found available buses and smart connected routes from ${updatedOrigin} to ${updatedDest} for ${updatedDate}:`;
-    }
-
+    responseText = langRes.complete(updatedOrigin!, updatedDest!, updatedDate);
     breakRoutes = computeBreakJourneyRoutes(updatedOrigin!, updatedDest!, updatedDate);
   } else if (!updatedOrigin) {
-    if (detectedLang === 'te') {
-      responseText = 'మీరు ఏ నగరం నుండి ప్రయాణించాలనుకుంటున్నారు? (ఉదా: విశాఖపట్నం, హైదరాబాద్)';
-    } else if (detectedLang === 'hi') {
-      responseText = 'आप किस शहर से यात्रा शुरू करना चाहते हैं? (जैसे: दिल्ली, मुंबई)';
-    } else {
-      responseText = 'Where would you like to travel from? (e.g., Visakhapatnam, Hyderabad, Kochi)';
-    }
+    responseText = langRes.needOrigin;
   } else {
-    if (detectedLang === 'te') {
-      responseText = `${updatedOrigin} నుండి మీరు ఏ నగరానికి వెళ్లాలి? (ఉదా: హైదరాబాద్, బెంగళూరు)`;
-    } else if (detectedLang === 'hi') {
-      responseText = `${updatedOrigin} से आप किस शहर जाना चाहते हैं?`;
-    } else {
-      responseText = `Where would you like to go from ${updatedOrigin}? (e.g., Hyderabad, Bengaluru)`;
-    }
+    responseText = langRes.needDest(updatedOrigin);
   }
 
   const responseMessage: ChatMessage = {

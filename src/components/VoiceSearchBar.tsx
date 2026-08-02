@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, Square, Globe, Loader2, Sparkles, Volume2 } from 'lucide-react';
+import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
 
@@ -42,7 +42,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Guntur
   guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', గుండూర్: 'Guntur',
-  ಗುಂಟೂರು: 'Guntur', ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
+  ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
 
   // Rajahmundry
   rajahmundry: 'Rajahmundry', rajahmundri: 'Rajahmundry', రాజమండ్రి: 'Rajahmundry',
@@ -70,8 +70,8 @@ export const CITY_ALIASES: Record<string, string> = {
   ವರಂಗಲ್: 'Warangal', വരംഗൽ: 'Warangal', વરંગલ: 'Warangal',
 
   // Karimnagar
-  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar', కరీంநகர்: 'Karimnagar',
-  ಕರೀಂನಗರ: 'Karimnagar', కరీంనഗർ: 'Karimnagar', કરીમનગર: 'Karimnagar',
+  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar',
+  కరీంనగర: 'Karimnagar', કરીમનગર: 'Karimnagar',
 
   // Mumbai
   mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
@@ -107,7 +107,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Mysuru
   mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
-  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூரு: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
+  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூರು: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
   മൈസൂരു: 'Mysuru', મૈસુરુ: 'Mysuru',
 };
 
@@ -171,30 +171,38 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   en: (o, d) => `Showing you buses from ${o} to ${d}`,
 };
 
-function speakWithBrowser(text: string, languageCode: string) {
+export function speakWithBrowser(text: string, languageCode: string) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang =
-    languageCode === 'en'
-      ? 'en-IN'
-      : languageCode === 'te'
-      ? 'te-IN'
-      : languageCode === 'hi'
-      ? 'hi-IN'
-      : languageCode === 'ta'
-      ? 'ta-IN'
-      : languageCode === 'kn'
-      ? 'kn-IN'
-      : languageCode === 'ml'
-      ? 'ml-IN'
-      : languageCode === 'mr'
-      ? 'mr-IN'
-      : languageCode === 'gu'
-      ? 'gu-IN'
-      : languageCode === 'bn'
-      ? 'bn-IN'
-      : languageCode;
+  
+  const targetLang =
+    languageCode === 'te' ? 'te-IN'
+    : languageCode === 'hi' ? 'hi-IN'
+    : languageCode === 'ta' ? 'ta-IN'
+    : languageCode === 'kn' ? 'kn-IN'
+    : languageCode === 'ml' ? 'ml-IN'
+    : languageCode === 'mr' ? 'mr-IN'
+    : languageCode === 'gu' ? 'gu-IN'
+    : languageCode === 'bn' ? 'bn-IN'
+    : languageCode === 'ur' ? 'ur-IN'
+    : languageCode === 'pa' ? 'pa-IN'
+    : languageCode === 'or' ? 'or-IN'
+    : 'en-IN';
+
+  utterance.lang = targetLang;
+
+  // Try to find a matching native regional voice
+  const voices = window.speechSynthesis.getVoices();
+  if (voices && voices.length > 0) {
+    const matchedVoice = voices.find((v) =>
+      v.lang.toLowerCase().replace('_', '-').startsWith(targetLang.substring(0, 2).toLowerCase())
+    );
+    if (matchedVoice) {
+      utterance.voice = matchedVoice;
+    }
+  }
+
   window.speechSynthesis.speak(utterance);
 }
 
@@ -290,6 +298,7 @@ export default function VoiceSearchBar() {
   const [transcript, setTranscript] = useState('');
   const [spokenText, setSpokenText] = useState('');
   const [needsClarification, setNeedsClarification] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -310,6 +319,7 @@ export default function VoiceSearchBar() {
   }, []);
 
   function startVoiceSearch() {
+    setMicError(null);
     setSpokenText('');
     setTranscript('');
     fullTranscriptRef.current = '';
@@ -356,7 +366,7 @@ export default function VoiceSearchBar() {
           const lowerText = currentText.toLowerCase();
 
           for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
+            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('<ctrl42>బದಲಾಯಿಸಿ'))) {
               setLanguage(langCode);
             }
           }
@@ -374,6 +384,14 @@ export default function VoiceSearchBar() {
 
         recog.onerror = (e: any) => {
           console.log('Speech recognition error event:', e);
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            setMicError('Microphone permission blocked. Please allow mic access in your browser settings.');
+            isRecordingRef.current = false;
+            setIsRecording(false);
+          } else {
+            // Fallback to audio recorder gracefully
+            fallbackToAudioRecord();
+          }
         };
 
         recog.onend = () => {
@@ -412,7 +430,7 @@ export default function VoiceSearchBar() {
       recorder.start();
       mediaRecorderRef.current = recorder;
     } catch (err) {
-      setSpokenText('Microphone permission required for voice search.');
+      setMicError('Microphone permission required for voice search. Please click "Allow" in your browser bar.');
       isRecordingRef.current = false;
       setIsRecording(false);
     }
@@ -453,6 +471,7 @@ export default function VoiceSearchBar() {
       setLanguage(parsed.intent.language);
     }
 
+    // Speak back natively in the user's spoken language!
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
@@ -461,7 +480,7 @@ export default function VoiceSearchBar() {
         destination: parsed.intent.destination,
         date: parsed.intent.date,
       });
-      setTimeout(() => navigate(`/results?${params.toString()}`), 1500);
+      setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
     }
 
     setIsProcessing(false);
@@ -501,7 +520,7 @@ export default function VoiceSearchBar() {
           destination: data.intent.destination,
           date: data.intent.date || new Date().toISOString().split('T')[0],
         });
-        setTimeout(() => navigate(`/results?${params.toString()}`), 1500);
+        setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
       }
     } catch (err) {
       console.log('Backend unreachable, using instant local resolution');
@@ -538,11 +557,19 @@ export default function VoiceSearchBar() {
 
       <p className="max-w-xl text-center text-xs sm:text-sm text-slate-300">{t('voiceHint')}</p>
 
+      {micError && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-500/20 border border-red-500/40 px-4 py-2 text-xs font-semibold text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+          <span>{micError}</span>
+        </div>
+      )}
+
+      {/* Mic / Speaker Button */}
       <button
         onClick={isRecording ? stopVoiceSearch : startVoiceSearch}
         disabled={isProcessing}
         aria-label={isRecording ? 'Stop recording' : 'Start voice search'}
-        className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-2xl transition-all duration-300 ${
+        className={`relative flex h-24 w-24 items-center justify-center rounded-full text-white shadow-2xl transition-all duration-300 cursor-pointer ${
           isRecording
             ? 'scale-110 bg-red-500 ring-8 ring-red-500/30 animate-pulse'
             : 'bg-gradient-to-r from-blue-600 to-emerald-500 hover:scale-105 hover:shadow-blue-500/50'
@@ -551,9 +578,9 @@ export default function VoiceSearchBar() {
         {isProcessing ? (
           <Loader2 className="h-9 w-9 animate-spin text-white" />
         ) : isRecording ? (
-          <Square className="h-8 w-8" />
+          <Square className="h-8 w-8 text-white" />
         ) : (
-          <Mic className="h-9 w-9" />
+          <Mic className="h-9 w-9 text-white" />
         )}
       </button>
 
@@ -561,7 +588,7 @@ export default function VoiceSearchBar() {
         {isProcessing
           ? t('processing')
           : isRecording
-          ? '🔴 Recording continuously... Tap button or say "Stop" / "ఆపు" / "रोको" to finish'
+          ? '🔴 Recording... Tap button or say "Stop" / "ఆపు" / "रोको" to search'
           : t('speakNow')}
       </p>
 
