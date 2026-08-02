@@ -17,10 +17,13 @@ export default function ChatbotWidget() {
     origin: null,
     destination: null,
     date: new Date().toISOString().split('T')[0],
+    time: null,
     busType: null,
+    seatType: null,
     maxBudget: null,
     language: currentLanguage,
     step: 'origin',
+    confidence: 'high',
   });
 
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -29,7 +32,7 @@ export default function ChatbotWidget() {
       sender: 'assistant',
       text: 'Namaste! I am Chicha, your AI Travel Companion. Speak or type your trip details (e.g. "buses from Vizag to Hyderabad tomorrow" or "నన్ను విజయవాడ పంపించండి")',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      actionChips: ['🚌 Visakhapatnam to Hyderabad', '🚌 Kochi to Bangalore', '📍 My Location', '💰 Cheapest Bus'],
+      actionChips: ['🚌 Visakhapatnam to Hyderabad', '🚌 Kochi to Warangal', '📍 My Location', '💰 Cheapest Bus'],
     },
   ]);
 
@@ -101,6 +104,18 @@ export default function ChatbotWidget() {
       setIsTyping(false);
 
       speakText(responseMessage.text, responseMessage.language || currentLanguage);
+
+      if (nextState.origin && nextState.destination) {
+        const params = new URLSearchParams({
+          origin: nextState.origin,
+          destination: nextState.destination,
+          date: nextState.date || new Date().toISOString().split('T')[0],
+        });
+        setTimeout(() => {
+          setIsOpen(false);
+          navigate(`/results?${params.toString()}`);
+        }, 2200);
+      }
     }, 600);
   }
 
@@ -193,10 +208,13 @@ export default function ChatbotWidget() {
       origin: null,
       destination: null,
       date: new Date().toISOString().split('T')[0],
+      time: null,
       busType: null,
+      seatType: null,
       maxBudget: null,
       language: currentLanguage,
       step: 'origin',
+      confidence: 'high',
     });
     setMessages([
       {
