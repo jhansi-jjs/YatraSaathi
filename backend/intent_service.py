@@ -1,8 +1,9 @@
 """
 intent_service.py
 
-Turns a raw transcript into a structured bus-search intent.
-Uses Google Gemini API when available, with a fast local extraction fallback.
+Dynamic NLU & Entity Extraction Engine for Yatra Saathi.
+Extracts origin, destination, date, and intent from natural speech in 12 Indian languages.
+No hardcoded defaults.
 """
 
 import json
@@ -11,7 +12,6 @@ import re
 import datetime
 from language_service import get_language_name, LANGUAGES
 
-# Attempt Gemini configuration if key exists
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 genai = None
 if GEMINI_KEY:
@@ -27,7 +27,7 @@ SUPPORTED_CODES = ", ".join(LANGUAGES.keys())
 
 CITY_ALIASES = {
     # Visakhapatnam
-    "visakhapatnam": "Visakhapatnam", "vizag": "Visakhapatnam", "visakha": "Visakhapatnam",
+    "visakhapatnam": "Visakhapatnam", "vizag": "Visakhapatnam", "visakha": "Visakhapatnam", "visag": "Visakhapatnam", "vizakhapatnam": "Visakhapatnam", "vishakhapatnam": "Visakhapatnam", "vishakapatnam": "Visakhapatnam",
     "వైజాగ్": "Visakhapatnam", "విశాఖపట్నం": "Visakhapatnam", "विशाखापट्टनम": "Visakhapatnam",
     "விசாகப்பட்டினம்": "Visakhapatnam", "ವಿಶಾಖಪಟ್ಟಣ": "Visakhapatnam", "വിശാഖപട്ടണം": "Visakhapatnam",
     "વિશાખાપટ્ટનમ": "Visakhapatnam", "విశాఖ": "Visakhapatnam",
@@ -48,7 +48,7 @@ CITY_ALIASES = {
     "ಚೆನ್ನೈ": "Chennai", "ചെന്നൈ": "Chennai", "ચેન્નઈ": "Chennai",
 
     # Bengaluru
-    "bengaluru": "Bengaluru", "bangalore": "Bengaluru", "blr": "Bengaluru",
+    "bengaluru": "Bengaluru", "bangalore": "Bengaluru", "banglore": "Bengaluru", "blr": "Bengaluru",
     "బెంగళూరు": "Bengaluru", "బెంగుళూరు": "Bengaluru", "बेंगलुरु": "Bengaluru", "बैंगलोर": "Bengaluru",
     "பெங்களூரு": "Bengaluru", "ಬೆಂಗಳೂರು": "Bengaluru", "ബംഗളൂരു": "Bengaluru", "બેંગલુરુ": "Bengaluru",
 
@@ -96,7 +96,7 @@ CITY_ALIASES = {
 
     # Pune
     "pune": "Pune", "పుణే": "Pune", "పూనే": "Pune", "पुणे": "Pune",
-    "புனே": "Pune", "ಪುಣೆ": "Pune", "പുനെ": "Pune", "પુણે": "Pune",
+    "புனே": "Pune", "పుಣೆ": "Pune", "പുനെ": "Pune", "પુણે": "Pune",
 
     # Delhi
     "delhi": "Delhi", "dilli": "Delhi", "ఢిల్లీ": "Delhi", "ఢిల్లి": "Delhi",
@@ -105,22 +105,22 @@ CITY_ALIASES = {
 
     # Kolkata
     "kolkata": "Kolkata", "calcutta": "Kolkata", "కోల్‌కతా": "Kolkata", "కలకత్తా": "Kolkata",
-    "कोलकाता": "Kolkata", "कलकत्ता": "Kolkata", "கொல்கத்தா": "Kolkata", "ಕೋಲ್ಕತ್ತಾ": "Kolkata",
+    "कोलकाता": "Kolkata", "कलकत्ता": "Kolkata", "கொல்கத்தா": "Kolkata", "<ctrl42>କତ୍ତା": "Kolkata",
     "കൊൽക്കത്ത": "Kolkata", "કોલકાતા": "Kolkata",
 
     # Kochi
     "kochi": "Kochi", "cochin": "Kochi", "కొచ్చి": "Kochi", "కోచి": "Kochi",
-    "कोच्चि": "Kochi", "कोचीन": "Kochi", "கொச்சி": "Kochi", "ಕೊಚ್ಚಿ": "Kochi",
+    "कोच्चि": "Kochi", "कोचीन": "Kochi", "கொச்சி": "Kochi", "<ctrl42>చ్చి": "Kochi",
     "കൊച്ചി": "Kochi", "કોચી": "Kochi",
 
     # Coimbatore
     "coimbatore": "Coimbatore", "కోయంబత్తూర్": "Coimbatore", "कोयंबटूर": "Coimbatore",
-    "கோயம்புத்தூர்": "Coimbatore", "ಕೊಯಮತ್ತೂರು": "Coimbatore", "കോയമ്പത്തൂർ": "Coimbatore",
+    "கோயம்புத்தூர்": "Coimbatore", "<ctrl42>ಮತ್ತೂರು": "Coimbatore", "കോയമ്പത്തൂർ": "Coimbatore",
     "કોઈમ્બતૂર": "Coimbatore",
 
     # Madurai
     "madurai": "Madurai", "మదురై": "Madurai", "मदुराइ": "Madurai", "मदुरै": "Madurai",
-    "மதுரை": "Madurai", "ಮಧುರೈ": "Madurai", "മധുര": "Madurai", "મદુરાઈ": "Madurai",
+    "மதுரை": "Madurai", "<ctrl42>ಧುರೈ": "Madurai", "മധുര": "Madurai", "મદુરાઈ": "Madurai",
 
     # Mysuru
     "mysuru": "Mysuru", "mysore": "Mysuru", "మైసూరు": "Mysuru", "మైసూర్": "Mysuru",
@@ -143,24 +143,42 @@ LANGUAGE_KEYWORD_MAP = {
 }
 
 CLARIFICATIONS = {
-    "te": "దయచేసి బయలుదేరే మరియు చేరుకునే నగరాన్ని చెప్పండి (ఉదా: వైజాగ్ నుండి హైదరాబాద్)",
-    "hi": "कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: दिल्ली से जयपुर)",
+    "te": "దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: కొచ్చి నుండి వరంగల్).",
+    "hi": "कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: कोच्चि से वारंगल)।",
     "ta": "தயவுசெய்து நீங்கள் புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள்.",
     "kn": "ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ.",
-    "ml": "ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക.",
+    "ml": "ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക (ഉദാ: കൊച്ചിയിൽ നിന്ന് വരംഗലിലേക്ക്).",
     "mr": "कृपया प्रस्थान आणि गंतव्य शहर सांगा.",
     "gu": "કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.",
     "bn": "অনুগ্রহ করে যাত্রার শহর এবং গন্তব্য জানান।",
     "ur": "براہ کرم روانگی کا شہر اور منزل بتائیں۔",
-    "en": "Please specify your origin and destination cities (e.g., Hyderabad to Vijayawada)",
+    "pa": "ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਅਤੇ ਪਹੁੰਚਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।",
+    "or": "ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ଏବଂ ଗନ୍ତବ୍ୟ ସହର କୁହନ୍ତୁ।",
+    "en": "Please specify your origin and destination cities (e.g., Kochi to Warangal).",
 }
+
+def _levenshtein(a: str, b: str) -> int:
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    if len(b) == 0:
+        return len(a)
+    previous_row = range(len(b) + 1)
+    for i, c1 in enumerate(a):
+        current_row = [i + 1]
+        for j, c2 in enumerate(b):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
 
 
 def _local_intent_extraction(transcript: str, selected_lang: str | None, detected_lang: str | None) -> dict:
     text_lower = transcript.lower().strip()
     lang = selected_lang or detected_lang or "en"
 
-    # Auto-detect language script
+    # Script auto-detection
     if re.search(r'[\u0C00-\u0C7F]', transcript):
         lang = "te"
     elif re.search(r'[\u0900-\u097F]', transcript):
@@ -184,6 +202,17 @@ def _local_intent_extraction(transcript: str, selected_lang: str | None, detecte
         if word.lower() in text_lower and city not in found_cities:
             found_cities.append(city)
 
+    # Fuzzy fallback for phonetics
+    if not found_cities:
+        tokens = text_lower.split()
+        for token in tokens:
+            if len(token) < 3:
+                continue
+            for word, city in CITY_ALIASES.items():
+                if _levenshtein(token, word) <= 2 and city not in found_cities:
+                    found_cities.append(city)
+                    break
+
     origin = None
     destination = None
 
@@ -196,7 +225,7 @@ def _local_intent_extraction(transcript: str, selected_lang: str | None, detecte
     today_str = datetime.date.today().isoformat()
     tomorrow_str = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
     date_val = today_str
-    if any(k in text_lower for k in ["tomorrow", "రేపు", "कल", "நாளை", "ನಾಳೆ", "നാളെ"]):
+    if any(k in text_lower for k in ["tomorrow", "రేపు", "कल", "நாளை", "ನಾಳೆ", "നാളെ", "ഉद्या"]):
         date_val = tomorrow_str
 
     clarification = None
@@ -232,7 +261,7 @@ def extract_bus_intent(
                 generation_config={"response_mime_type": "application/json"},
             )
             prompt = f"""
-            Extract bus search intent from transcript: "{transcript}".
+            Extract bus travel intent from natural speech: "{transcript}".
             Languages: {SUPPORTED_CODES}.
             Return JSON:
             {{
@@ -266,26 +295,26 @@ def generate_confirmation(intent: dict) -> str:
     destination = intent.get("destination", "")
 
     if lang == "te":
-        return f"మీకు {origin} నుండి {destination} వెళ్లే బస్సులను చూపిస్తున్నాను"
+        return f"సరే! మీరు {origin} నుండి {destination}కు ప్రయాణించాలనుకుంటున్నారు. అందుబాటులో ఉన్న బస్సులను చూపిస్తున్నాను."
     elif lang == "hi":
-        return f"हम आपको {origin} से {destination} जाने वाली बसें दिखा रहे हैं"
+        return f"ठीक है! हम आपको {origin} से {destination} जाने वाली बसें दिखा रहे हैं।"
     elif lang == "ta":
-        return f"நாங்கள் உங்களுக்கு {origin} இலிருந்து {destination} செல்லும் பேருந்துகளைக் காட்டுகிறோம்"
+        return f"சரி! நாங்கள் உங்களுக்கு {origin} இலிருந்து {destination} செல்லும் பேருந்துகளைக் காட்டுகிறோம்."
     elif lang == "kn":
-        return f"ನಾವು ನಿಮಗೆ {origin} ದಿಂದ {destination} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ"
+        return f"ಸರಿ! ನಾವು ನಿಮಗೆ {origin} ದಿಂದ {destination} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ."
     elif lang == "ml":
-        return f"ഞങ്ങൾ നിങ്ങൾക്ക് {origin} ൽ നിന്ന് {destination} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു"
+        return f"ശരി! ഞങ്ങൾ നിങ്ങൾക്ക് {origin} ൽ നിന്ന് {destination} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു."
     elif lang == "mr":
-        return f"आम्ही तुम्हाला {origin} ते {destination} जाणाऱ्या बसेस दाखवत आहोत"
+        return f"ठीक आहे! आम्ही तुम्हाला {origin} ते {destination} जाणाऱ्या बसेस दाखवत आहोत."
     elif lang == "gu":
-        return f"અમે તમને {origin} થી {destination} જતી બસો બતાવી રહ્યા છીએ"
+        return f"બરાબર! અમે તમને {origin} થી {destination} જતી બસો બતાવી રહ્યા છીએ."
     elif lang == "bn":
-        return f"আমরা আপনাকে {origin} থেকে {destination} যাওয়ার বাসগুলো দেখাচ্ছি"
+        return f"ঠিক আছে! আমরা আপনাকে {origin} থেকে {destination} যাওয়ার বাসগুলো দেখাচ্ছি।"
     elif lang == "ur":
-        return f"ہم آپ کو {origin} سے {destination} جانے والی بسیں دکھا رہے ہیں"
+        return f"ٹھیک ہے! ہم آپ کو {origin} سے {destination} جانے والی بسیں دکھا رہے ہیں۔"
     elif lang == "pa":
-        return f"ਅਸੀਂ ਤੁਹਾਨੂੰ {origin} ਤੋਂ {destination} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ"
+        return f"ਠੀਕ ਹੈ! ਅਸੀਂ ਤੁਹਾਨੂੰ {origin} ਤੋਂ {destination} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ।"
     elif lang == "or":
-        return f"ଆମେ ଆପଣଙ୍କୁ {origin} ରୁ {destination} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ"
+        return f"ଠିକ୍ ଅଛି! ଆମେ ଆପଣଙ୍କୁ {origin} ରୁ {destination} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ।"
 
-    return f"Showing you buses from {origin} to {destination}"
+    return f"Great! Showing you buses from {origin} to {destination}."

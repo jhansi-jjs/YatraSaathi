@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
+import { extractCitiesFromInput, extractDateFromInput, detectLanguageFromText } from '../lib/agenticAiService';
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
@@ -11,7 +12,7 @@ const BACKEND_URL =
 
 export const CITY_ALIASES: Record<string, string> = {
   // Visakhapatnam
-  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', visakha: 'Visakhapatnam',
+  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', visakha: 'Visakhapatnam', visag: 'Visakhapatnam', vizakhapatnam: 'Visakhapatnam', vishakhapatnam: 'Visakhapatnam', vishakapatnam: 'Visakhapatnam',
   వైజాగ్: 'Visakhapatnam', విశాఖపట్నం: 'Visakhapatnam', विशाखापट्टनम: 'Visakhapatnam',
   விசாகப்பட்டினம்: 'Visakhapatnam', ವಿಶಾಖಪಟ್ಟಣ: 'Visakhapatnam', വിശാഖപട്ടണം: 'Visakhapatnam',
   વિશાખાપટ્ટનમ: 'Visakhapatnam', విశాఖ: 'Visakhapatnam',
@@ -32,7 +33,7 @@ export const CITY_ALIASES: Record<string, string> = {
   ಚೆನ್ನೈ: 'Chennai', ചെന്നൈ: 'Chennai', ચેન્નઈ: 'Chennai',
 
   // Bengaluru
-  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', blr: 'Bengaluru',
+  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', banglore: 'Bengaluru', blr: 'Bengaluru',
   బెంగళూరు: 'Bengaluru', బెంగుళూరు: 'Bengaluru', बेंगलुरु: 'Bengaluru', बैंगलोर: 'Bengaluru',
   பெங்களூரு: 'Bengaluru', ಬೆಂಗಳೂರು: 'Bengaluru', ബംഗളൂരു: 'Bengaluru', બેંગલુરુ: 'Bengaluru',
 
@@ -76,7 +77,7 @@ export const CITY_ALIASES: Record<string, string> = {
   // Mumbai
   mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
   मुंबई: 'Mumbai', बंबई: 'Mumbai', மும்பை: 'Mumbai', ಮುಂಬೈ: 'Mumbai',
-  മുംബൈ: 'Mumbai', મુંબઈ: 'Mumbai',
+  മുംബൈ: 'Mumbai', മુંબઈ: 'Mumbai',
 
   // Pune
   pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
@@ -108,7 +109,7 @@ export const CITY_ALIASES: Record<string, string> = {
   // Mysuru
   mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
   मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூರು: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
-  മൈസൂരു: 'Mysuru', મૈસુરુ: 'Mysuru',
+  മൈസൂരു: 'Mysuru', മૈસુરુ: 'Mysuru',
 };
 
 const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
@@ -142,33 +143,33 @@ const STOP_KEYWORDS = [
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
-  te: 'దయచేసి బయలుదేరే మరియు చేరుకునే నగరాన్ని చెప్పండి (ఉదా: వైజాగ్ నుండి హైదరాబాద్)',
-  hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: दिल्ली से जयपुर)',
-  ta: 'தயவுசெய்து நீங்கள் புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள்.',
-  kn: 'ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ.',
-  ml: 'ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക.',
+  te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: కొచ్చి నుండి వరంగల్).',
+  hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: कोच्चि से वारंगल)।',
+  ta: 'தயவுசெய்து புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள் (எ.கா: கொச்சியிலிருந்து வாரங்கல்).',
+  kn: 'ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ (ಉದಾ: ಕೊಚ್ಚಿಯಿಂದ ವಾರಂಗಲ್).',
+  ml: 'ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക (ഉദാ: കൊച്ചിയിൽ നിന്ന് വരംഗലിലേക്ക്).',
   mr: 'कृपया प्रस्थान आणि गंतव्य शहर सांगा.',
   gu: 'કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.',
   bn: 'অনুগ্রহ করে যাত্রার শহর এবং গন্তব্য জানান।',
   ur: 'براہ کرم روانگی کا شہر اور منزل بتائیں۔',
   pa: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਅਤੇ ਪਹੁੰਚਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
   or: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ଏବଂ ଗନ୍ତବ୍ୟ ସହର କୁହନ୍ତୁ।',
-  en: 'Please specify your origin and destination cities (e.g., Hyderabad to Vijayawada)',
+  en: 'Please specify your origin and destination cities (e.g., Kochi to Warangal).',
 };
 
 const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
-  te: (o, d) => `మీకు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను`,
-  hi: (o, d) => `हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं`,
-  ta: (o, d) => `நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்`,
-  kn: (o, d) => `ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ`,
-  ml: (o, d) => `ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു`,
-  mr: (o, d) => `आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत`,
-  gu: (o, d) => `અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ`,
-  bn: (o, d) => `আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি`,
-  ur: (o, d) => `ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں`,
-  pa: (o, d) => `ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ`,
-  or: (o, d) => `ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ`,
-  en: (o, d) => `Showing you buses from ${o} to ${d}`,
+  te: (o, d) => `సరే! మీరు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను.`,
+  hi: (o, d) => `ठीक है! हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं।`,
+  ta: (o, d) => `சரி! நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்.`,
+  kn: (o, d) => `ಸರಿ! ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ.`,
+  ml: (o, d) => `ശരി! ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു.`,
+  mr: (o, d) => `ठीक आहे! आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत.`,
+  gu: (o, d) => `બરાબર! અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ.`,
+  bn: (o, d) => `ঠিক আছে! আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি।`,
+  ur: (o, d) => `ٹھیک ہے! ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں۔`,
+  pa: (o, d) => `ਠੀਕ ਹੈ! ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ।`,
+  or: (o, d) => `ଠିକ୍ ଅଛି! ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ।`,
+  en: (o, d) => `Great! Showing you buses from ${o} to ${d}.`,
 };
 
 export function speakWithBrowser(text: string, languageCode: string) {
@@ -192,7 +193,6 @@ export function speakWithBrowser(text: string, languageCode: string) {
 
   utterance.lang = targetLang;
 
-  // Try to find a matching native regional voice
   const voices = window.speechSynthesis.getVoices();
   if (voices && voices.length > 0) {
     const matchedVoice = voices.find((v) =>
@@ -206,61 +206,24 @@ export function speakWithBrowser(text: string, languageCode: string) {
   window.speechSynthesis.speak(utterance);
 }
 
-function clientSideParseIntent(text: string, defaultLang: string) {
-  const lower = text.toLowerCase().trim();
-  let lang = defaultLang;
+function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
+  const lang = detectLanguageFromText(text, defaultLang);
+  const foundCities = extractCitiesFromInput(text);
+  const date = extractDateFromInput(text);
 
-  if (/[\u0C00-\u0C7F]/.test(text)) lang = 'te';
-  else if (/[\u0900-\u097F]/.test(text)) lang = 'hi';
-  else if (/[\u0B80-\u0BFF]/.test(text)) lang = 'ta';
-  else if (/[\u0C80-\u0CFF]/.test(text)) lang = 'kn';
-  else if (/[\u0D00-\u0D7F]/.test(text)) lang = 'ml';
-  else if (/[\u0A80-\u0AFF]/.test(text)) lang = 'gu';
-  else if (/[\u0980-\u09FF]/.test(text)) lang = 'bn';
-  else if (/[\u0600-\u06FF]/.test(text)) lang = 'ur';
-  else if (/[\u0A00-\u0A7F]/.test(text)) lang = 'pa';
-  else if (/[\u0B00-\u0B7F]/.test(text)) lang = 'or';
-
-  for (const [kw, code] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-    if (lower.includes(kw)) {
-      lang = code;
-      break;
-    }
-  }
-
-  const foundCities: string[] = [];
-  for (const [alias, canonicalCity] of Object.entries(CITY_ALIASES)) {
-    if (lower.includes(alias.toLowerCase()) && !foundCities.includes(canonicalCity)) {
-      foundCities.push(canonicalCity);
-    }
-  }
-
-  let origin: string | null = null;
+  let origin: string | null = currentContextOrigin || null;
   let destination: string | null = null;
 
   if (foundCities.length >= 2) {
     origin = foundCities[0];
     destination = foundCities[1];
   } else if (foundCities.length === 1) {
-    destination = foundCities[0];
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-  let date = today;
-  if (
-    lower.includes('tomorrow') ||
-    lower.includes('రేపు') ||
-    lower.includes('कल') ||
-    lower.includes('நாளை') ||
-    lower.includes('ನಾಳೆ') ||
-    lower.includes('നാളെ') ||
-    lower.includes('उद्या') ||
-    lower.includes('આવતીકાલે') ||
-    lower.includes('আগামীকাল') ||
-    lower.includes('کل')
-  ) {
-    date = tomorrow;
+    const singleCity = foundCities[0];
+    if (!origin) {
+      origin = singleCity;
+    } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
+      destination = singleCity;
+    }
   }
 
   const ready = Boolean(origin && destination);
@@ -271,7 +234,13 @@ function clientSideParseIntent(text: string, defaultLang: string) {
   const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
   const spoken = ready
     ? confirmationFn(originNative, destNative)
-    : CLARIFICATIONS[lang] || CLARIFICATIONS['en'];
+    : origin
+    ? (lang === 'te' ? `సరే! మీరు ${originNative} నుండి ప్రయాణిస్తున్నారు. ఏ నగరానికి వెళ్లాలనుకుంటున్నారు?`
+       : lang === 'hi' ? `ठीक है! आप ${originNative} से यात्रा कर रहे हैं। किस शहर जाना चाहते हैं?`
+       : lang === 'ml' ? `ശരി! നിങ്ങൾ ${originNative} ൽ നിന്നാണ് പുറപ്പെടുന്നത്. ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്?`
+       : lang === 'ta' ? `சரி! நீங்கள் ${originNative} இலிருந்து புறப்படுகிறீர்கள். எந்த நகரத்திற்குச் செல்ல வேண்டும்?`
+       : `Got it! You are departing from ${origin}. Where would you like to travel to?`)
+    : (CLARIFICATIONS[lang] || CLARIFICATIONS['en']);
 
   return {
     transcript: text,
@@ -299,6 +268,9 @@ export default function VoiceSearchBar() {
   const [spokenText, setSpokenText] = useState('');
   const [needsClarification, setNeedsClarification] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
+
+  // Context memory across user voice turns
+  const [sessionOrigin, setSessionOrigin] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -366,7 +338,7 @@ export default function VoiceSearchBar() {
           const lowerText = currentText.toLowerCase();
 
           for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('<ctrl42>బದಲಾಯಿಸಿ'))) {
+            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
               setLanguage(langCode);
             }
           }
@@ -389,7 +361,6 @@ export default function VoiceSearchBar() {
             isRecordingRef.current = false;
             setIsRecording(false);
           } else {
-            // Fallback to audio recorder gracefully
             fallbackToAudioRecord();
           }
         };
@@ -452,16 +423,16 @@ export default function VoiceSearchBar() {
     }
 
     const finalText = fullTranscriptRef.current || transcript;
-    if (finalText) {
-      processTextDirectly(finalText);
-    } else {
-      handleAudioUpload();
-    }
+    processTextDirectly(finalText || '');
   }
 
   function processTextDirectly(text: string) {
     setIsProcessing(true);
-    const parsed = clientSideParseIntent(text, currentLanguage);
+    const parsed = clientSideParseIntent(text, currentLanguage, sessionOrigin);
+
+    if (parsed.intent.origin) {
+      setSessionOrigin(parsed.intent.origin);
+    }
 
     setTranscript(parsed.transcript);
     setSpokenText(parsed.spoken_text);
@@ -508,6 +479,10 @@ export default function VoiceSearchBar() {
       setSpokenText(data.spoken_text);
       setNeedsClarification(data.needs_clarification);
 
+      if (data.intent?.origin) {
+        setSessionOrigin(data.intent.origin);
+      }
+
       if (data.intent?.language && data.intent.language !== currentLanguage) {
         setLanguage(data.intent.language);
       }
@@ -524,7 +499,7 @@ export default function VoiceSearchBar() {
       }
     } catch (err) {
       console.log('Backend unreachable, using instant local resolution');
-      processTextDirectly(transcript || 'buses from Visakhapatnam to Hyderabad');
+      processTextDirectly(transcript || '');
     } finally {
       setIsProcessing(false);
     }
