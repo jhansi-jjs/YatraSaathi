@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle } from 'lucide-react';
+import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle, Bug, ChevronDown, ChevronUp, Terminal, CheckCircle2 } from 'lucide-react';
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
 import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText } from '../lib/agenticAiService';
+import { buildOtaDeepLink, OTA_LIST } from '../lib/ota';
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
@@ -56,14 +57,14 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Nellore
   nellore: 'Nellore', నెల్లూరు: 'Nellore', नेल्लोर: 'Nellore', நெல்லூர்: 'Nellore',
-  ನೆಲ್ಲೂರು: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
+  ನೆಲ್ಲూరు: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
 
   // Kurnool
   kurnool: 'Kurnool', కర్నూలు: 'Kurnool', कुर्नूल: 'Kurnool', கர்நூல்: 'Kurnool',
   ಕರ್ನೂಲು: 'Kurnool', കർണൂൽ: 'Kurnool', કુર્નૂલ: 'Kurnool',
 
   // Anantapur
-  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தபூர்: 'Anantapur',
+  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தపూర్: 'Anantapur',
   ಅನಂತಪುರ: 'Anantapur', അനന്തപൂർ: 'Anantapur', અનંતપુર: 'Anantapur',
 
   // Warangal
@@ -81,7 +82,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Pune
   pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
-  புனே: 'Pune', పుಣೆ: 'Pune', പുനെ: 'Pune', પુણે: 'Pune',
+  புனே: 'Pune', పుಣೆ: 'Pune', పుനെ: 'Pune', પુણે: 'Pune',
 
   // Delhi
   delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
@@ -105,7 +106,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Madurai
   madurai: 'Madurai', మదురై: 'Madurai', मदेरै: 'Madurai', मदुरै: 'Madurai',
-  மதுரை: 'Madurai', ಮಧುರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
+  மதுரை: 'Madurai', ಮಧుರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
 
   // Mysuru
   mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
@@ -131,16 +132,16 @@ const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
 const STOP_KEYWORDS = [
   'stop', 'finish', 'done', 'cancel',
   'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
-  'రోకో', 'రुकिए', 'बस', 'बंद करो', 'स्टॉप',
+  'రోకో', 'रुकिए', 'बस', 'बंद करो', 'స్టాప్',
   'நிறுத்து', 'நிறுத்துங்கள்', 'ஸ்டாப்',
   'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟಾಪ್',
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
-  'थांबा', 'स्टॉप',
+  'थांबा', 'స్టాప్',
   'રોકો', 'સ્ટોપ',
   'থামুন', 'സ്റ്റപ്',
   'روکیں', 'سٹاپ',
   'ਰੋਕੋ', 'ਸਟਾਪ',
-  'ରଖନ୍ତୁ', 'ଷ୍ਟପ୍'
+  'ରଖନ୍ତୁ', 'ଷ୍ଟପ୍'
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
@@ -207,63 +208,11 @@ export function speakWithBrowser(text: string, languageCode: string) {
   window.speechSynthesis.speak(utterance);
 }
 
-function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
-  const lang = detectLanguageFromText(text, defaultLang);
-  const cityResult = extractCitiesFromInput(text);
-  const prefResult = extractContinuousPreferences(text);
-
-  let origin: string | null = currentContextOrigin || null;
-  let destination: string | null = null;
-
-  if (cityResult.cities.length >= 2) {
-    origin = cityResult.cities[0];
-    destination = cityResult.cities[1];
-  } else if (cityResult.cities.length === 1) {
-    const singleCity = cityResult.cities[0];
-    if (!origin) {
-      origin = singleCity;
-    } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
-      destination = singleCity;
-    }
-  }
-
-  const ready = Boolean(origin && destination);
-
-  const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
-  const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
-
-  const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
-  const spoken = ready
-    ? confirmationFn(originNative, destNative)
-    : cityResult.confidence === 'low' && cityResult.lowConfCity
-    ? (lang === 'te' ? `మీరు ${cityResult.lowConfCity} అని అంటున్నారా? దయచేసి మళ్లీ చెప్పండి.`
-       : lang === 'hi' ? `क्या आपका मतलब ${cityResult.lowConfCity} है?`
-       : `Did you mean ${cityResult.lowConfCity}? Please specify your destination.`)
-    : origin
-    ? (lang === 'te' ? `సరే! మీరు ${originNative} నుండి ప్రయాణిస్తున్నారు. ఏ నగరానికి వెళ్లాలనుకుంటున్నారు?`
-       : lang === 'hi' ? `ठीक है! आप ${originNative} से यात्रा कर रहे हैं। किस शहर जाना चाहते हैं?`
-       : lang === 'ml' ? `ശരി! നിങ്ങൾ ${originNative} ൽ നിന്നാണ് പുറപ്പെടുന്നത്. ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്?`
-       : lang === 'ta' ? `சரி! நீங்கள் ${originNative} இலிருந்து புறப்படுகிறீர்கள். எந்த நகரத்திற்குச் செல்ல வேண்டும்?`
-       : `Got it! You are departing from ${origin}. Where would you like to travel to?`)
-    : (CLARIFICATIONS[lang] || CLARIFICATIONS['en']);
-
-  return {
-    transcript: text,
-    intent: {
-      origin,
-      destination,
-      date: prefResult.date,
-      time: prefResult.time,
-      busType: prefResult.busType,
-      seatType: prefResult.seatType,
-      language: lang,
-      clarification_needed: ready ? null : spoken,
-    },
-    spoken_text: spoken,
-    needs_clarification: !ready,
-    ready_to_search: ready,
-    confidence: cityResult.confidence,
-  };
+interface PipelineLog {
+  time: string;
+  stage: string;
+  detail: string;
+  type: 'info' | 'success' | 'warn' | 'error';
 }
 
 export default function VoiceSearchBar() {
@@ -278,6 +227,12 @@ export default function VoiceSearchBar() {
   const [needsClarification, setNeedsClarification] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
 
+  // Debug Panel State
+  const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [pipelineLogs, setPipelineLogs] = useState<PipelineLog[]>([]);
+  const [debugEntities, setDebugEntities] = useState<any>({});
+  const [debugOtaUrls, setDebugOtaUrls] = useState<Record<string, string>>({});
+
   // Context memory across user voice turns
   const [sessionOrigin, setSessionOrigin] = useState<string | null>(null);
 
@@ -287,6 +242,16 @@ export default function VoiceSearchBar() {
   const recognitionRef = useRef<any>(null);
   const isRecordingRef = useRef<boolean>(false);
   const fullTranscriptRef = useRef<string>('');
+
+  function addPipelineLog(stage: string, detail: string, type: 'info' | 'success' | 'warn' | 'error' = 'info') {
+    const newLog: PipelineLog = {
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      stage,
+      detail,
+      type,
+    };
+    setPipelineLogs((prev) => [newLog, ...prev.slice(0, 49)]);
+  }
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/languages`)
@@ -307,6 +272,8 @@ export default function VoiceSearchBar() {
     setNeedsClarification(false);
     isRecordingRef.current = true;
     setIsRecording(true);
+
+    addPipelineLog('1. Mic Capture', 'Microphone recording initialized. Listening for audio...', 'info');
 
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -335,7 +302,7 @@ export default function VoiceSearchBar() {
             ? 'bn-IN'
             : 'en-IN';
 
-        // Add SpeechGrammarList to bias Web Speech API toward dropdown cities!
+        // SpeechGrammarList JSGF biasing for travel cities
         const SpeechGrammarList =
           (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
         if (SpeechGrammarList) {
@@ -346,6 +313,7 @@ export default function VoiceSearchBar() {
             )} | ${Object.keys(CITY_ALIASES).join(' | ')} ;`;
             grammarList.addFromString(grammar, 1.0);
             recog.grammars = grammarList;
+            addPipelineLog('2. STT Grammar', 'JSGF SpeechGrammarList injected with 23 dropdown cities & aliases', 'info');
           } catch (gErr) {
             console.log('Grammar list not supported:', gErr);
           }
@@ -360,11 +328,14 @@ export default function VoiceSearchBar() {
           fullTranscriptRef.current = currentText;
           setTranscript(currentText);
 
+          addPipelineLog('3. STT Transcript', `Recognized speech: "${currentText}"`, 'success');
+
           const lowerText = currentText.toLowerCase();
 
           for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
             if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('ಬದಲಾಯಿಸಿ'))) {
               setLanguage(langCode);
+              addPipelineLog('4. Lang Switch', `Auto switched voice language to: ${langCode}`, 'info');
             }
           }
 
@@ -381,8 +352,9 @@ export default function VoiceSearchBar() {
 
         recog.onerror = (e: any) => {
           console.log('Speech recognition error event:', e);
+          addPipelineLog('STT Error', `Speech error event: ${e.error}`, 'warn');
           if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            setMicError('Microphone permission blocked. Please allow mic access in your browser settings.');
+            setMicError('Microphone permission blocked. Please allow mic access in browser settings.');
             isRecordingRef.current = false;
             setIsRecording(false);
           } else {
@@ -402,7 +374,7 @@ export default function VoiceSearchBar() {
         recog.start();
         return;
       } catch (e) {
-        console.log('Web Speech API init failed, fallback to MediaRecorder');
+        addPipelineLog('STT Fallback', 'Web Speech API error, falling back to MediaRecorder upload', 'warn');
       }
     }
 
@@ -426,7 +398,8 @@ export default function VoiceSearchBar() {
       recorder.start();
       mediaRecorderRef.current = recorder;
     } catch (err) {
-      setMicError('Microphone permission required for voice search. Please click "Allow" in your browser bar.');
+      setMicError('Microphone permission required for voice search. Please click "Allow" in browser.');
+      addPipelineLog('Mic Error', 'Microphone permission denied by browser', 'error');
       isRecordingRef.current = false;
       setIsRecording(false);
     }
@@ -451,8 +424,104 @@ export default function VoiceSearchBar() {
     processTextDirectly(finalText || '');
   }
 
+  function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
+    const lang = detectLanguageFromText(text, defaultLang);
+    addPipelineLog('5. Language Detection', `Detected Language: ${lang.toUpperCase()}`, 'info');
+
+    const cityResult = extractCitiesFromInput(text);
+    addPipelineLog(
+      '6. City Normalization',
+      `Cities Found: [${cityResult.cities.join(', ')}] | Confidence: ${cityResult.confidence}`,
+      cityResult.cities.length > 0 ? 'success' : 'warn'
+    );
+
+    const prefResult = extractContinuousPreferences(text);
+    addPipelineLog(
+      '7. Entity Extraction',
+      `Date: ${prefResult.date} | Time: ${prefResult.time || 'N/A'} | BusType: ${prefResult.busType || 'N/A'} | SeatType: ${prefResult.seatType || 'N/A'}`,
+      'info'
+    );
+
+    let origin: string | null = currentContextOrigin || null;
+    let destination: string | null = null;
+
+    if (cityResult.cities.length >= 2) {
+      origin = cityResult.cities[0];
+      destination = cityResult.cities[1];
+    } else if (cityResult.cities.length === 1) {
+      const singleCity = cityResult.cities[0];
+      if (!origin) {
+        origin = singleCity;
+      } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
+        destination = singleCity;
+      }
+    }
+
+    const ready = Boolean(origin && destination);
+
+    const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
+    const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
+
+    const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
+    const spoken = ready
+      ? confirmationFn(originNative, destNative)
+      : cityResult.confidence === 'low' && cityResult.lowConfCity
+      ? (lang === 'te' ? `మీరు ${cityResult.lowConfCity} అని అంటున్నారా? దయచేసి మళ్లీ చెప్పండి.`
+         : lang === 'hi' ? `क्या आपका मतलब ${cityResult.lowConfCity} है?`
+         : `Did you mean ${cityResult.lowConfCity}? Please specify your destination.`)
+      : origin
+      ? (lang === 'te' ? `సరే! మీరు ${originNative} నుండి ప్రయాణిస్తున్నారు. ఏ నగరానికి వెళ్లాలనుకుంటున్నారు?`
+         : lang === 'hi' ? `ठीक है! आप ${originNative} से यात्रा कर रहे हैं। किस शहर जाना चाहते हैं?`
+         : lang === 'ml' ? `ശരി! നിങ്ങൾ ${originNative} ൽ നിന്നാണ് പുറപ്പെടുന്നത്. ഏത് നഗരത്തിലേക്കാണ് പോകേണ്ടത്?`
+         : lang === 'ta' ? `சரி! நீங்கள் ${originNative} இலிருந்து புறப்படுகிறீர்கள். எந்த நகரத்திற்குச் செல்ல வேண்டும்?`
+         : `Got it! You are departing from ${origin}. Where would you like to travel to?`)
+      : (CLARIFICATIONS[lang] || CLARIFICATIONS['en']);
+
+    // Build debug OTA URLs
+    if (origin && destination) {
+      const dateVal = prefResult.date || new Date().toISOString().split('T')[0];
+      const urls: Record<string, string> = {};
+      OTA_LIST.forEach((ota) => {
+        urls[ota] = buildOtaDeepLink({ ota_source: ota }, origin, destination, dateVal);
+      });
+      setDebugOtaUrls(urls);
+      addPipelineLog('8. OTA Links', `Generated dynamic booking URLs for ${OTA_LIST.length} OTAs`, 'success');
+    }
+
+    setDebugEntities({
+      rawTranscript: text,
+      detectedLang: lang,
+      origin,
+      destination,
+      date: prefResult.date,
+      time: prefResult.time,
+      busType: prefResult.busType,
+      seatType: prefResult.seatType,
+      confidence: cityResult.confidence,
+      readyToSearch: ready,
+    });
+
+    return {
+      transcript: text,
+      intent: {
+        origin,
+        destination,
+        date: prefResult.date,
+        time: prefResult.time,
+        busType: prefResult.busType,
+        seatType: prefResult.seatType,
+        language: lang,
+        clarification_needed: ready ? null : spoken,
+      },
+      spoken_text: spoken,
+      needs_clarification: !ready,
+      ready_to_search: ready,
+    };
+  }
+
   function processTextDirectly(text: string) {
     setIsProcessing(true);
+    addPipelineLog('4. NLU Processing', `Processing transcript: "${text}"`, 'info');
     const parsed = clientSideParseIntent(text, currentLanguage, sessionOrigin);
 
     if (parsed.intent.origin) {
@@ -467,8 +536,8 @@ export default function VoiceSearchBar() {
       setLanguage(parsed.intent.language);
     }
 
-    // Speak back natively in the user's spoken language!
     speakWithBrowser(parsed.spoken_text, parsed.intent.language);
+    addPipelineLog('9. Audio Synthesis', `TTS Audio Spoken: "${parsed.spoken_text}"`, 'success');
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
       const params = new URLSearchParams({
@@ -476,6 +545,7 @@ export default function VoiceSearchBar() {
         destination: parsed.intent.destination,
         date: parsed.intent.date,
       });
+      addPipelineLog('10. Search Execution', `Navigating to /results?${params.toString()}`, 'success');
       setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
     }
 
@@ -500,6 +570,8 @@ export default function VoiceSearchBar() {
       if (!res.ok) throw new Error('Network error');
 
       const data = await res.json();
+      addPipelineLog('Backend NLU', `Backend STT Response: "${data.transcript}"`, 'success');
+
       setTranscript(data.transcript);
       setSpokenText(data.spoken_text);
       setNeedsClarification(data.needs_clarification);
@@ -523,7 +595,7 @@ export default function VoiceSearchBar() {
         setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
       }
     } catch (err) {
-      console.log('Backend unreachable, using instant local resolution');
+      addPipelineLog('Backend Fallback', 'Backend service unavailable. Using client NLU parser', 'warn');
       processTextDirectly(transcript || '');
     } finally {
       setIsProcessing(false);
@@ -538,20 +610,30 @@ export default function VoiceSearchBar() {
           <h3 className="text-base font-bold text-white">{t('voiceTitle')}</h3>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-blue-400" />
-          <span className="text-xs text-slate-300">{t('voiceLanguageLabel')}:</span>
-          <select
-            value={currentLanguage}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="rounded-lg border border-white/20 bg-slate-800 px-3 py-1 text-xs font-semibold text-white outline-none cursor-pointer hover:border-blue-400 transition-colors"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className="flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/20 transition-colors"
           >
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.native_name} ({lang.name})
-              </option>
-            ))}
-          </select>
+            <Bug className="h-3.5 w-3.5" />
+            <span>Developer Debug Panel</span>
+            {showDebugPanel ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-blue-400" />
+            <select
+              value={currentLanguage}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="rounded-lg border border-white/20 bg-slate-800 px-3 py-1 text-xs font-semibold text-white outline-none cursor-pointer hover:border-blue-400 transition-colors"
+            >
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.native_name} ({lang.name})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -564,7 +646,7 @@ export default function VoiceSearchBar() {
         </div>
       )}
 
-      {/* Mic / Speaker Button */}
+      {/* Mic Button */}
       <button
         onClick={isRecording ? stopVoiceSearch : startVoiceSearch}
         disabled={isProcessing}
@@ -588,7 +670,7 @@ export default function VoiceSearchBar() {
         {isProcessing
           ? t('processing')
           : isRecording
-          ? '🔴 Recording... Tap button or say "Stop" / "ఆపు" / "रोको" to search'
+          ? '🔴 Recording... Tap button or say "Stop" / "ఆపు" / "రోకో" to search'
           : t('speakNow')}
       </p>
 
@@ -608,6 +690,84 @@ export default function VoiceSearchBar() {
       {needsClarification && (
         <div className="rounded-lg bg-amber-500/20 border border-amber-500/40 px-4 py-2 text-xs font-semibold text-amber-300 animate-bounce">
           💡 Tap the mic to reply & complete your request
+        </div>
+      )}
+
+      {/* Developer Debug Panel */}
+      {showDebugPanel && (
+        <div className="w-full mt-4 rounded-xl bg-slate-950/90 border border-amber-500/40 p-4 font-mono text-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <div className="flex items-center gap-2 text-amber-400 font-bold">
+              <Terminal className="h-4 w-4" />
+              <span>🐞 Developer Voice Pipeline Debug Panel</span>
+            </div>
+            <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
+              Active Logging
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Status:</span>
+              <span className="font-bold text-blue-300">
+                {isRecording ? '🔴 RECORDING' : isProcessing ? '⚙️ PROCESSING' : '🟢 IDLE'}
+              </span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Detected Lang:</span>
+              <span className="font-bold text-emerald-300">{debugEntities.detectedLang || currentLanguage}</span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Origin City:</span>
+              <span className="font-bold text-amber-300">{debugEntities.origin || 'Not Extracted'}</span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Destination City:</span>
+              <span className="font-bold text-purple-300">{debugEntities.destination || 'Not Extracted'}</span>
+            </div>
+          </div>
+
+          {/* Real-Time Pipeline Log Feed */}
+          <div>
+            <span className="text-slate-400 font-bold block mb-1">📜 Pipeline Real-Time Event Log:</span>
+            <div className="max-h-36 overflow-y-auto space-y-1 bg-black/60 p-2.5 rounded border border-white/10 text-[11px]">
+              {pipelineLogs.length === 0 ? (
+                <p className="text-slate-500 italic">No events yet. Tap the mic and speak to view real-time pipeline telemetry.</p>
+              ) : (
+                pipelineLogs.map((log, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="text-slate-500 text-[10px] shrink-0">[{log.time}]</span>
+                    <span className={`font-semibold shrink-0 ${
+                      log.type === 'success' ? 'text-emerald-400' : log.type === 'warn' ? 'text-amber-400' : log.type === 'error' ? 'text-red-400' : 'text-blue-400'
+                    }`}>
+                      [{log.stage}]
+                    </span>
+                    <span className="text-slate-200">{log.detail}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Generated OTA Deep Links Preview */}
+          {Object.keys(debugOtaUrls).length > 0 && (
+            <div className="pt-2 border-t border-white/10">
+              <span className="text-slate-400 font-bold block mb-1">🔗 Dynamic OTA Deep Links Generated:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[10px]">
+                {Object.entries(debugOtaUrls).map(([ota, url]) => (
+                  <a
+                    key={ota}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate text-blue-400 hover:underline bg-white/5 p-1 rounded border border-white/10 block"
+                  >
+                    <strong>{ota}:</strong> {url}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
