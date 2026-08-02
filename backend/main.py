@@ -6,6 +6,7 @@ FastAPI app: voice/text -> intent extraction -> spoken confirmation.
 
 import os
 import asyncio
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,12 +21,14 @@ load_dotenv(_root / ".env")
 load_dotenv(Path(__file__).resolve().parent / ".env")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
+logger = logging.getLogger(__name__)
+
 from voice_service import transcribe_audio_bytes, get_model
 from intent_service import extract_bus_intent, generate_confirmation
 from tts_service import synthesize_speech
 from language_service import get_language_list
 
-app = FastAPI(title="Bharat Bus Voice Assistant")
+app = FastAPI(title="Bharat Bus Voice Assistant API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +40,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    # Pre-warm Whisper model in background thread on server start
+    logger.info("Initializing FastAPI Backend Server & Pre-warming Whisper Model...")
     asyncio.create_task(run_in_threadpool(get_model))
 
 
@@ -72,31 +75,54 @@ async def voice_search(
     selected_language: str | None = Form(None),
     valid_cities: str | None = Form(None),
 ):
+    logger.info("==================================================")
+    logger.info("[POST /voice-search Request Received]")
+    logger.info("Uploaded filename: '%s' | Content-Type: '%s'", audio.filename, audio.content_type)
+
     audio_bytes = await audio.read()
+    file_size_bytes = len(audio_bytes)
+    logger.info("Read Audio payload size: %d bytes (%.2f KB)", file_size_bytes, file_size_bytes / 1024)
+
+    if file_size_bytes == 0:
+        logger.error("Rejecting request: Uploaded audio payload is 0 bytes!")
+        raise HTTPException(
+            status_code=400,
+            detail="Speech Recognition Failed: Received 0 bytes audio payload from frontend.",
+        )
+
     cities = valid_cities.split(",") if valid_cities else None
 
     try:
         transcription = await run_in_threadpool(
-            transcribe_audio_bytes, audio_bytes, filename_hint=audio.filename or "audio.webm"
+            transcribe_audio_bytes,
+            audio_bytes,
+            filename_hint=audio.filename or "recording.webm",
+            mime_type=audio.content_type or "audio/webm",
         )
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Speech recognition failed: {exc}") from exc
+        logger.error("Whisper Transcription Exception: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Speech Recognition Exception: {exc}") from exc
 
-    if not transcription.get("text"):
+    raw_text = transcription.get("text", "").strip()
+
+    if not raw_text:
+        logger.warning("[STT Guard] Whisper returned empty transcript for audio payload (%d bytes)", file_size_bytes)
         raise HTTPException(
             status_code=422,
-            detail="Could not hear anything in the recording. Try speaking closer to the mic.",
+            detail="Speech Recognition Failed: Audio not heard or silent recording. Please speak clearly into your mic.",
         )
+
+    logger.info("[NLU Input] Passing transcript to intent extractor: '%s'", raw_text)
 
     intent = await run_in_threadpool(
         extract_bus_intent,
-        transcription["text"],
-        transcription["detected_language"],
+        raw_text,
+        transcription.get("detected_language", "en"),
         selected_language,
         cities,
     )
 
-    return await _resolve_intent(transcription["text"], intent)
+    return await _resolve_intent(raw_text, intent)
 
 
 @app.post("/text-search")
@@ -133,4 +159,4 @@ async def _resolve_intent(transcript: str, intent: dict) -> dict:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "backend": "active"}
