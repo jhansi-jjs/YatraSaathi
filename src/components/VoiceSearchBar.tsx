@@ -83,7 +83,7 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Pune
   pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
-  புனே: 'Pune', పుಣೆ: 'Pune', పుനെ: 'Pune', પુણે: 'Pune',
+  புனே: 'Pune', పుಣೆ: 'Pune', పునె: 'Pune', పుણે: 'Pune',
 
   // Delhi
   delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
@@ -98,10 +98,10 @@ export const CITY_ALIASES: Record<string, string> = {
   // Kochi
   kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
   कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi',
-  കൊച്ചി: 'Kochi', കോચી: 'Kochi',
+  കൊച്ചി: 'Kochi', കോചീ: 'Kochi',
 
   // Coimbatore
-  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटூர்: 'Coimbatore',
+  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
   கோயம்புத்தூர்: 'Coimbatore', ಕೋಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
   કોઈમ્બતૂર: 'Coimbatore',
 
@@ -133,16 +133,16 @@ const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
 const STOP_KEYWORDS = [
   'stop', 'finish', 'done', 'cancel',
   'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
-  'రోకో', 'रुकिए', 'बस', 'बंद करो', 'స్టాప్',
-  'நிறுத்து', 'நிறுத்துங்கள்', 'ஸ்டாப்',
-  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟಾಪ್',
+  'రోకో', 'रुकिए', 'बस', 'बंद करो',
+  'நிறுத்து', 'நிறுத்துங்கள்',
+  'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು',
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
-  'थांबा', 'స్టాప్',
-  'રોકો', 'સ્ટોપ',
-  'থামুন', 'സ്റ്റപ്',
-  'روکیں', 'سٹاپ',
-  'ਰੋਕੋ', 'ਸਟਾਪ',
-  'రଖନ୍ତୁ', 'ଷ୍ଟପ୍'
+  'थांबा',
+  'રોકો',
+  'থামুন',
+  'روکیں',
+  'ਰੋਕੋ',
+  'రଖନ୍ତୁ'
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
@@ -164,7 +164,7 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   te: (o, d) => `సరే! మీరు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను.`,
   hi: (o, d) => `ठीक है! हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं।`,
   ta: (o, d) => `சரி! நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்.`,
-  kn: (o, d) => `ಸರಿ! ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ.`,
+  kn: (o, d) => `సరి! ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ.`,
   ml: (o, d) => `ശരി! ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു.`,
   mr: (o, d) => `ठीक आहे! आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत.`,
   gu: (o, d) => `બરાબર! અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ.`,
@@ -219,7 +219,7 @@ interface PipelineLog {
 export default function VoiceSearchBar() {
   const navigate = useNavigate();
   const { currentLanguage, setLanguage, t } = useLanguage();
-  const { session, updateSession, setSearchRoute } = useSearch();
+  const { session, updateSession } = useSearch();
 
   const [languages, setLanguages] = useState<LanguageOption[]>(SUPPORTED_LANGUAGES);
   const [isRecording, setIsRecording] = useState(false);
@@ -263,7 +263,7 @@ export default function VoiceSearchBar() {
       });
   }, []);
 
-  function startVoiceSearch() {
+  async function startVoiceSearch() {
     setMicError(null);
     setSpokenText('');
     setTranscript('');
@@ -272,121 +272,21 @@ export default function VoiceSearchBar() {
     isRecordingRef.current = true;
     setIsRecording(true);
 
-    addPipelineLog('1. Mic Capture', 'Microphone recording initialized. Listening for audio...', 'info');
+    addPipelineLog('1. Mic Capture', 'Microphone recording initialized. Capturing audio stream...', 'info');
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (SpeechRecognition) {
-      try {
-        const recog = new SpeechRecognition();
-        recog.continuous = true;
-        recog.interimResults = true;
-        recog.lang =
-          currentLanguage === 'te'
-            ? 'te-IN'
-            : currentLanguage === 'hi'
-            ? 'hi-IN'
-            : currentLanguage === 'ta'
-            ? 'ta-IN'
-            : currentLanguage === 'kn'
-            ? 'kn-IN'
-            : currentLanguage === 'ml'
-            ? 'ml-IN'
-            : currentLanguage === 'mr'
-            ? 'mr-IN'
-            : currentLanguage === 'gu'
-            ? 'gu-IN'
-            : currentLanguage === 'bn'
-            ? 'bn-IN'
-            : 'en-IN';
-
-        // SpeechGrammarList JSGF biasing for travel cities
-        const SpeechGrammarList =
-          (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
-        if (SpeechGrammarList) {
-          try {
-            const grammarList = new SpeechGrammarList();
-            const grammar = `#JSGF V1.0; grammar cities; public <city> = ${CITIES.join(
-              ' | '
-            )} | ${Object.keys(CITY_ALIASES).join(' | ')} ;`;
-            grammarList.addFromString(grammar, 1.0);
-            recog.grammars = grammarList;
-            addPipelineLog('2. STT Grammar', 'JSGF SpeechGrammarList injected with 23 dropdown cities & aliases', 'info');
-          } catch (gErr) {
-            console.log('Grammar list not supported:', gErr);
-          }
-        }
-
-        recog.onresult = (event: any) => {
-          let currentText = '';
-          for (let i = 0; i < event.results.length; i++) {
-            currentText += event.results[i][0].transcript + ' ';
-          }
-          currentText = currentText.trim();
-          fullTranscriptRef.current = currentText;
-          setTranscript(currentText);
-
-          addPipelineLog('3. STT Transcript', `Recognized speech: "${currentText}"`, 'success');
-
-          const lowerText = currentText.toLowerCase();
-
-          for (const [kw, langCode] of Object.entries(LANGUAGE_KEYWORD_MAP)) {
-            if (lowerText.includes(kw) && (lowerText.includes('change') || lowerText.includes('switch') || lowerText.includes('మార్చండి') || lowerText.includes('बदलें') || lowerText.includes('மாற்று') || lowerText.includes('<ctrl42>బದಲಾಯಿಸಿ'))) {
-              setLanguage(langCode);
-              addPipelineLog('4. Lang Switch', `Auto switched voice language to: ${langCode}`, 'info');
-            }
-          }
-
-          for (const stopWord of STOP_KEYWORDS) {
-            if (lowerText.includes(stopWord)) {
-              const cleanedText = currentText.replace(new RegExp(stopWord, 'gi'), '').trim();
-              fullTranscriptRef.current = cleanedText;
-              setTranscript(cleanedText);
-              stopVoiceSearch();
-              return;
-            }
-          }
-        };
-
-        recog.onerror = (e: any) => {
-          console.log('Speech recognition error event:', e);
-          addPipelineLog('STT Error', `Speech error event: ${e.error}`, 'warn');
-          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            setMicError('Microphone permission blocked. Please allow mic access in browser settings.');
-            isRecordingRef.current = false;
-            setIsRecording(false);
-          } else {
-            fallbackToAudioRecord();
-          }
-        };
-
-        recog.onend = () => {
-          if (isRecordingRef.current) {
-            try {
-              recog.start();
-            } catch {}
-          }
-        };
-
-        recognitionRef.current = recog;
-        recog.start();
-        return;
-      } catch (e) {
-        addPipelineLog('STT Fallback', 'Web Speech API error, falling back to MediaRecorder upload', 'warn');
-      }
-    }
-
-    fallbackToAudioRecord();
-  }
-
-  async function fallbackToAudioRecord() {
+    // First preference: Direct MediaRecorder Audio Stream for robust backend Whisper processing
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
-      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         mediaStreamRef.current = null;
@@ -394,13 +294,60 @@ export default function VoiceSearchBar() {
           void handleAudioUpload();
         }
       };
-      recorder.start();
+
+      recorder.start(100);
       mediaRecorderRef.current = recorder;
+      addPipelineLog('1. MediaRecorder', 'MediaRecorder started. Recording WebM audio stream...', 'success');
     } catch (err) {
-      setMicError('Microphone permission required for voice search. Please click "Allow" in browser.');
-      addPipelineLog('Mic Error', 'Microphone permission denied by browser', 'error');
+      addPipelineLog('Mic Error', 'Microphone permission denied or audio device missing', 'error');
+      setMicError('Microphone permission required for voice search. Please allow mic access in browser.');
       isRecordingRef.current = false;
       setIsRecording(false);
+      return;
+    }
+
+    // Optional SpeechRecognition for real-time live preview feedback if supported
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recog = new SpeechRecognition();
+        recog.continuous = true;
+        recog.interimResults = true;
+        recog.lang =
+          currentLanguage === 'te' ? 'te-IN'
+          : currentLanguage === 'hi' ? 'hi-IN'
+          : currentLanguage === 'ta' ? 'ta-IN'
+          : currentLanguage === 'kn' ? 'kn-IN'
+          : currentLanguage === 'ml' ? 'ml-IN'
+          : currentLanguage === 'mr' ? 'mr-IN'
+          : currentLanguage === 'gu' ? 'gu-IN'
+          : currentLanguage === 'bn' ? 'bn-IN'
+          : 'en-IN';
+
+        recog.onresult = (event: any) => {
+          let currentText = '';
+          for (let i = 0; i < event.results.length; i++) {
+            currentText += event.results[i][0].transcript + ' ';
+          }
+          currentText = currentText.trim();
+          if (currentText) {
+            fullTranscriptRef.current = currentText;
+            setTranscript(currentText);
+            addPipelineLog('Live Speech STT', `Preview transcript: "${currentText}"`, 'info');
+          }
+        };
+
+        recog.onerror = (e: any) => {
+          console.log('Browser SpeechRecognition event:', e.error);
+          addPipelineLog('STT Preview', `Live preview speech event: ${e.error} (falling back to backend Whisper)`, 'warn');
+        };
+
+        recognitionRef.current = recog;
+        recog.start();
+      } catch (e) {
+        console.log('Web Speech preview error:', e);
+      }
     }
   }
 
@@ -413,14 +360,28 @@ export default function VoiceSearchBar() {
         recognitionRef.current.stop();
       } catch {}
     }
-    if (mediaRecorderRef.current) {
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
+        addPipelineLog('2. Stop Recording', 'Stopping MediaRecorder. Preparing audio blob for upload...', 'info');
         mediaRecorderRef.current.stop();
       } catch {}
+    } else {
+      const finalText = fullTranscriptRef.current || transcript;
+      if (finalText && finalText.trim().length > 0) {
+        processTextDirectly(finalText);
+      } else {
+        handleEmptyTranscriptGuard();
+      }
     }
+  }
 
-    const finalText = fullTranscriptRef.current || transcript;
-    processTextDirectly(finalText || '');
+  function handleEmptyTranscriptGuard() {
+    setIsProcessing(false);
+    addPipelineLog('STT Guard', '❌ Empty transcript. Audio not heard. Halting NLU pipeline.', 'error');
+    const emptyMsg = 'Microphone audio was not heard. Please hold the mic button and speak clearly into your microphone.';
+    setSpokenText(emptyMsg);
+    setNeedsClarification(true);
   }
 
   function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
@@ -456,7 +417,6 @@ export default function VoiceSearchBar() {
       }
     }
 
-    // Synchronize to global SearchSession!
     if (origin || destination) {
       updateSession({
         source: origin || session.source,
@@ -490,7 +450,6 @@ export default function VoiceSearchBar() {
          : `Got it! You are departing from ${origin}. Where would you like to travel to?`)
       : (CLARIFICATIONS[lang] || CLARIFICATIONS['en']);
 
-    // Build debug OTA URLs
     if (origin && destination) {
       const dateVal = prefResult.date || session.date || new Date().toISOString().split('T')[0];
       const urls: Record<string, string> = {};
@@ -533,6 +492,11 @@ export default function VoiceSearchBar() {
   }
 
   function processTextDirectly(text: string) {
+    if (!text || !text.trim()) {
+      handleEmptyTranscriptGuard();
+      return;
+    }
+
     setIsProcessing(true);
     addPipelineLog('4. NLU Processing', `Processing transcript: "${text}"`, 'info');
     const parsed = clientSideParseIntent(text, currentLanguage, session.source);
@@ -565,21 +529,34 @@ export default function VoiceSearchBar() {
     setIsProcessing(true);
     const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
 
+    addPipelineLog('3. Blob Check', `Audio Blob created: ${audioBlob.size.toLocaleString()} bytes`, audioBlob.size > 0 ? 'success' : 'error');
+
+    if (audioBlob.size === 0) {
+      handleEmptyTranscriptGuard();
+      return;
+    }
+
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
     formData.append('selected_language', currentLanguage);
     formData.append('valid_cities', CITIES.join(','));
 
     try {
+      addPipelineLog('4. POST Upload', `Uploading audio blob to backend ${BACKEND_URL}/voice-search...`, 'info');
       const res = await fetch(`${BACKEND_URL}/voice-search`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!res.ok) throw new Error('Network error');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-      addPipelineLog('Backend NLU', `Backend STT Response: "${data.transcript}"`, 'success');
+      addPipelineLog('5. Whisper Result', `Backend Whisper STT Response: "${data.transcript || ''}"`, data.transcript ? 'success' : 'warn');
+
+      if (!data.transcript || !data.transcript.trim()) {
+        handleEmptyTranscriptGuard();
+        return;
+      }
 
       setTranscript(data.transcript);
       setSpokenText(data.spoken_text);
@@ -608,8 +585,13 @@ export default function VoiceSearchBar() {
         setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
       }
     } catch (err) {
-      addPipelineLog('Backend Fallback', 'Backend service unavailable. Using client NLU parser', 'warn');
-      processTextDirectly(transcript || '');
+      addPipelineLog('Backend Fallback', `Backend Whisper upload failed (${err}). Parsing local transcript preview...`, 'warn');
+      const previewText = fullTranscriptRef.current || transcript;
+      if (previewText && previewText.trim().length > 0) {
+        processTextDirectly(previewText);
+      } else {
+        handleEmptyTranscriptGuard();
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -683,7 +665,7 @@ export default function VoiceSearchBar() {
         {isProcessing
           ? t('processing')
           : isRecording
-          ? '🔴 Recording... Tap button or say "Stop" / "ఆపు" / "రోకో" to search'
+          ? '🔴 Recording... Tap button when finished speaking'
           : t('speakNow')}
       </p>
 
