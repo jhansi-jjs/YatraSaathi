@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle } from 'lucide-react';
 import { CITIES } from './SearchForm';
 import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
-import { extractCitiesFromInput, extractDateFromInput, detectLanguageFromText } from '../lib/agenticAiService';
+import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText } from '../lib/agenticAiService';
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
@@ -23,8 +23,8 @@ export const CITY_ALIASES: Record<string, string> = {
   હૈદરાબાદ: 'Hyderabad', হায়দ্রাবাদ: 'Hyderabad', حیدرآباد: 'Hyderabad',
 
   // Vijayawada
-  vijayawada: 'Vijayawada', vja: 'Vijayawada', bezawada: 'Vijayawada',
-  విజయవాడ: 'Vijayawada', బెజవాడ: 'Vijayawada', विजयवाड़ा: 'Vijayawada', விஜயவாடா: 'Vijayawada',
+  vijayawada: 'Vijayawada', vijawada: 'Vijayawada', vja: 'Vijayawada', bezawada: 'Vijayawada', vijaywada: 'Vijayawada',
+  విజయవాడ: 'Vijayawada', విజవాడ: 'Vijayawada', బెజవాడ: 'Vijayawada', विजयवाड़ा: 'Vijayawada', विजवाडा: 'Vijayawada', விஜயவாடா: 'Vijayawada',
   ವಿಜಯವಾಡ: 'Vijayawada', വിജയവാഡ: 'Vijayawada', વિજયવાડા: 'Vijayawada',
 
   // Chennai
@@ -90,16 +90,17 @@ export const CITY_ALIASES: Record<string, string> = {
 
   // Kolkata
   kolkata: 'Kolkata', calcutta: 'Kolkata', కోల్‌కతా: 'Kolkata', కలకత్తా: 'Kolkata',
-  कोलकाता: 'Kolkata', कलकत्ता: 'Kolkata', கொல்கத்தா: 'Kolkata', ಕೋಲ್ಕತ್ತಾ: 'Kolkata',
+  कोलकाता: 'Kolkata', कलकत्ता: 'Kolkata', கொல்கத்தா: 'Kolkata',
   കൊൽക്കത്ത: 'Kolkata', કોલકાતા: 'Kolkata',
 
   // Kochi
   kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
-  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi', കൊച്ചി: 'Kochi', കോચી: 'Kochi',
+  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi',
+  കൊച്ചി: 'Kochi', കോચી: 'Kochi',
 
   // Coimbatore
   coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
-  கோயம்புத்தூர்: 'Coimbatore', ಕೊಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
+  கோயம்புத்தூர்: 'Coimbatore', ಕೋಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
   કોઈમ્બતૂર: 'Coimbatore',
 
   // Madurai
@@ -130,7 +131,7 @@ const LANGUAGE_KEYWORD_MAP: Record<string, string> = {
 const STOP_KEYWORDS = [
   'stop', 'finish', 'done', 'cancel',
   'ఆపు', 'ఆపండి', 'చాలు', 'స్టాప్',
-  'रोको', 'रुकिए', 'बस', 'बंद करो', 'स्टॉप',
+  'రోకో', 'రुकिए', 'बस', 'बंद करो', 'स्टॉप',
   'நிறுத்து', 'நிறுத்துங்கள்', 'ஸ்டாப்',
   'ನಿಲ್ಲಿಸಿ', 'ಸಾಕು', 'ಸ್ಟಾಪ್',
   'നിർത്തുക', 'സ്റ്റോപ്പ്',
@@ -139,14 +140,14 @@ const STOP_KEYWORDS = [
   'থামুন', 'സ്റ്റപ്',
   'روکیں', 'سٹاپ',
   'ਰੋਕੋ', 'ਸਟਾਪ',
-  'ରଖନ୍ତୁ', 'ଷ୍ଟପ୍'
+  'ରଖନ୍ତୁ', 'ଷ୍ਟପ୍'
 ];
 
 const CLARIFICATIONS: Record<string, string> = {
-  te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: కొచ్చి నుండి వరంగల్).',
-  hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: कोच्चि से वारंगल)।',
-  ta: 'தயவுசெய்து புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள் (எ.கா: கொச்சியிலிருந்து வாரங்கல்).',
-  kn: 'ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ (ಉದಾ: ಕೊಚ್ಚಿಯಿಂದ ವಾರಂಗಲ್).',
+  te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: విజయవాడ నుండి హైదరాబాద్).',
+  hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: विजयवाड़ा से हैदराबाद)।',
+  ta: 'தயவுசெய்து புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள் (எ.கா: விஜயவாடாவிலிருந்து ஹைதராபாத்).',
+  kn: 'ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ (ಉದಾ: ವಿಜಯವಾಡದಿಂದ ಹೈದರಾಬಾದ್).',
   ml: 'ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക (ഉദാ: കൊച്ചിയിൽ നിന്ന് വരംഗലിലേക്ക്).',
   mr: 'कृपया प्रस्थान आणि गंतव्य शहर सांगा.',
   gu: 'કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.',
@@ -154,7 +155,7 @@ const CLARIFICATIONS: Record<string, string> = {
   ur: 'براہ کرم روانگی کا شہر اور منزل بتائیں۔',
   pa: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਅਤੇ ਪਹੁੰਚਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
   or: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ଏବଂ ଗନ୍ତବ୍ୟ ସହର କୁହନ୍ତୁ।',
-  en: 'Please specify your origin and destination cities (e.g., Kochi to Warangal).',
+  en: 'Please specify your origin and destination cities (e.g., Vijayawada to Hyderabad).',
 };
 
 const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
@@ -169,7 +170,7 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   ur: (o, d) => `ٹھیک ہے! ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں۔`,
   pa: (o, d) => `ਠੀਕ ਹੈ! ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ।`,
   or: (o, d) => `ଠିକ୍ ଅଛି! ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ।`,
-  en: (o, d) => `Great! Showing you buses from ${o} to ${d}.`,
+  en: (o, d) => `Got it! You're planning to travel from ${o} to ${d}.`,
 };
 
 export function speakWithBrowser(text: string, languageCode: string) {
@@ -208,17 +209,17 @@ export function speakWithBrowser(text: string, languageCode: string) {
 
 function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
   const lang = detectLanguageFromText(text, defaultLang);
-  const foundCities = extractCitiesFromInput(text);
-  const date = extractDateFromInput(text);
+  const cityResult = extractCitiesFromInput(text);
+  const prefResult = extractContinuousPreferences(text);
 
   let origin: string | null = currentContextOrigin || null;
   let destination: string | null = null;
 
-  if (foundCities.length >= 2) {
-    origin = foundCities[0];
-    destination = foundCities[1];
-  } else if (foundCities.length === 1) {
-    const singleCity = foundCities[0];
+  if (cityResult.cities.length >= 2) {
+    origin = cityResult.cities[0];
+    destination = cityResult.cities[1];
+  } else if (cityResult.cities.length === 1) {
+    const singleCity = cityResult.cities[0];
     if (!origin) {
       origin = singleCity;
     } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
@@ -234,6 +235,10 @@ function clientSideParseIntent(text: string, defaultLang: string, currentContext
   const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
   const spoken = ready
     ? confirmationFn(originNative, destNative)
+    : cityResult.confidence === 'low' && cityResult.lowConfCity
+    ? (lang === 'te' ? `మీరు ${cityResult.lowConfCity} అని అంటున్నారా? దయచేసి మళ్లీ చెప్పండి.`
+       : lang === 'hi' ? `क्या आपका मतलब ${cityResult.lowConfCity} है?`
+       : `Did you mean ${cityResult.lowConfCity}? Please specify your destination.`)
     : origin
     ? (lang === 'te' ? `సరే! మీరు ${originNative} నుండి ప్రయాణిస్తున్నారు. ఏ నగరానికి వెళ్లాలనుకుంటున్నారు?`
        : lang === 'hi' ? `ठीक है! आप ${originNative} से यात्रा कर रहे हैं। किस शहर जाना चाहते हैं?`
@@ -247,13 +252,17 @@ function clientSideParseIntent(text: string, defaultLang: string, currentContext
     intent: {
       origin,
       destination,
-      date,
+      date: prefResult.date,
+      time: prefResult.time,
+      busType: prefResult.busType,
+      seatType: prefResult.seatType,
       language: lang,
       clarification_needed: ready ? null : spoken,
     },
     spoken_text: spoken,
     needs_clarification: !ready,
     ready_to_search: ready,
+    confidence: cityResult.confidence,
   };
 }
 
@@ -325,6 +334,22 @@ export default function VoiceSearchBar() {
             : currentLanguage === 'bn'
             ? 'bn-IN'
             : 'en-IN';
+
+        // Add SpeechGrammarList to bias Web Speech API toward dropdown cities!
+        const SpeechGrammarList =
+          (window as any).SpeechGrammarList || (window as any).webkitSpeechGrammarList;
+        if (SpeechGrammarList) {
+          try {
+            const grammarList = new SpeechGrammarList();
+            const grammar = `#JSGF V1.0; grammar cities; public <city> = ${CITIES.join(
+              ' | '
+            )} | ${Object.keys(CITY_ALIASES).join(' | ')} ;`;
+            grammarList.addFromString(grammar, 1.0);
+            recog.grammars = grammarList;
+          } catch (gErr) {
+            console.log('Grammar list not supported:', gErr);
+          }
+        }
 
         recog.onresult = (event: any) => {
           let currentText = '';
