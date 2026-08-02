@@ -176,58 +176,93 @@ function recordMatch(matches: CityMatch[], city: string, index: number) {
   else if (index < existing.index) existing.index = index;
 }
 
+// Normalize to NFC so native-script cities match regardless of how the STT engine
+// composed the combining vowel signs (a common cause of missed Telugu/Tamil/etc.
+// city matches). Also lowercases for Latin.
+function normalizeText(s: string): string {
+  return (s || '').normalize('NFC');
+}
+
+// Precompute normalized+lowercased lookup tables once at module load.
+const NORM_ALIAS_ENTRIES: [string, string][] = Object.entries(CITY_ALIASES).map(
+  ([alias, canonical]) => [normalizeText(alias).toLowerCase(), canonical] as [string, string]
+);
+const NORM_CITY_ENTRIES: [string, string][] = CITIES.map(
+  (c) => [normalizeText(c).toLowerCase(), c] as [string, string]
+);
+
 // RapidFuzz & N-Gram City Normalizer matching strictly against CITIES dropdown dataset.
-// Cities are ordered by their POSITION in the sentence and then refined using
-// origin/destination connectives so "from kochi to delhi" -> [Kochi, Delhi] and even
-// "to delhi from kochi" -> [Kochi, Delhi].
+// Handles native-script + transliterated connectors ("X టు Y", "X నుండి Y", "Y se X",
+// "from X to Y"). Cities are ordered by POSITION (native postpositions read origin-first)
+// and refined by English prepositions so "to delhi from kochi" also resolves correctly.
 export function extractCitiesFromInput(text: string): {
   cities: string[];
   confidence: 'high' | 'medium' | 'low';
   lowConfCity?: string;
 } {
-  const lower = text.toLowerCase().trim();
-  const words = lower.split(/[\s,.-]+/).filter(Boolean);
+  const lower = normalizeText(text).toLowerCase().trim();
   const matches: CityMatch[] = [];
 
-  // 1. Multi-script aliases (e.g. "వైజాగ్", "vijayawada", "bezawada", "vja")
-  for (const [alias, canonical] of Object.entries(CITY_ALIASES)) {
-    recordMatch(matches, canonical, lower.indexOf(alias.toLowerCase()));
+  // 1. Direct substring match — catches native-script cities even when a connector or
+  //    grammatical suffix is attached ("విజయవాడకు", "బెంగళూరుటు", "bengalurutu").
+  for (const [alias, canonical] of NORM_ALIAS_ENTRIES) {
+    recordMatch(matches, canonical, lower.indexOf(alias));
+  }
+  for (const [name, canonical] of NORM_CITY_ENTRIES) {
+    recordMatch(matches, canonical, lower.indexOf(name));
   }
 
-  // 2. Canonical dropdown city names directly
-  for (const canonical of CITIES) {
-    recordMatch(matches, canonical, lower.indexOf(canonical.toLowerCase()));
+  // Tokenize on whitespace + punctuation across scripts, keeping token positions.
+  const tokens: { tk: string; at: number }[] = [];
+  const tokenRe = /[^\s,.\-!?;:।|/\\()]+/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tokenRe.exec(lower)) !== null) {
+    tokens.push({ tk: tm[0], at: tm.index });
   }
 
-  // 3. Multi-word N-Gram combinations (e.g., "vijay wada" -> Vijayawada)
-  for (let i = 0; i < words.length - 1; i++) {
-    const bigram = `${words[i]}${words[i + 1]}`;
-    const bigramSpaced = `${words[i]} ${words[i + 1]}`;
-    for (const [alias, canonical] of Object.entries(CITY_ALIASES)) {
-      if (alias.toLowerCase() === bigram || alias.toLowerCase() === bigramSpaced) {
-        recordMatch(matches, canonical, lower.indexOf(words[i]));
+  // 2. Token & 2-token-combo exact/prefix match (suffix-tolerant: "విజయవాడకు" -> Vijayawada).
+  const tryToken = (tk: string, at: number) => {
+    if (tk.length < 2) return;
+    for (const [alias, canonical] of NORM_ALIAS_ENTRIES) {
+      if (tk === alias || (alias.length >= 3 && tk.startsWith(alias))) {
+        recordMatch(matches, canonical, at);
+        return;
       }
     }
-    for (const canonical of CITIES) {
-      if (canonical.toLowerCase().replace(/\s+/g, '') === bigram) {
-        recordMatch(matches, canonical, lower.indexOf(words[i]));
+    for (const [name, canonical] of NORM_CITY_ENTRIES) {
+      if (tk === name || (name.length >= 4 && tk.startsWith(name))) {
+        recordMatch(matches, canonical, at);
+        return;
       }
     }
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    tryToken(tokens[i].tk, tokens[i].at);
+    if (i < tokens.length - 1) tryToken(tokens[i].tk + tokens[i + 1].tk, tokens[i].at);
   }
 
-  // 4. Fuzzy Levenshtein phonetic matching for STT mishearings, only if nothing found.
+  // 3. Fuzzy fallback (Levenshtein) for STT spelling variants — native or Latin —
+  //    only if we still have fewer than two cities. Conservative thresholds avoid
+  //    matching ordinary words like "బస్సులు" (buses).
   let lowConfCity: string | undefined = undefined;
-  if (matches.length === 0) {
-    for (const word of words) {
-      if (word.length < 3) continue;
-      for (const canonical of CITIES) {
-        const dist = levenshteinDistance(word, canonical.toLowerCase());
-        if (dist <= 2) {
-          recordMatch(matches, canonical, lower.indexOf(word));
-          break;
-        } else if (dist === 3 && !lowConfCity) {
-          lowConfCity = canonical;
+  if (matches.length < 2) {
+    for (const { tk, at } of tokens) {
+      if (tk.length < 3) continue;
+      let bestCity: string | null = null;
+      let bestDist = Infinity;
+      for (const [alias, canonical] of NORM_ALIAS_ENTRIES) {
+        if (Math.abs(alias.length - tk.length) > 2) continue;
+        const d = levenshteinDistance(tk, alias);
+        if (d < bestDist) {
+          bestDist = d;
+          bestCity = canonical;
         }
+      }
+      if (!bestCity) continue;
+      if (bestDist <= 1 && !matches.some((mm) => mm.city === bestCity)) {
+        recordMatch(matches, bestCity, at);
+      } else if (bestDist === 2 && !lowConfCity && !matches.some((mm) => mm.city === bestCity)) {
+        lowConfCity = bestCity;
       }
     }
   }
@@ -236,9 +271,8 @@ export function extractCitiesFromInput(text: string): {
   matches.sort((a, b) => a.index - b.index);
   let ordered = matches.map((m) => m.city);
 
-  // Directional refinement: the city that follows an ORIGIN marker is the origin;
-  // failing that, the city following a DEST marker is the destination. This makes
-  // "from kochi to delhi" and even "to delhi from kochi" both resolve to [Kochi, Delhi].
+  // Directional refinement for English prepositions ("from"/"to"). Native postpositions
+  // (నుండి/se/టు/…) already read origin-first, so plain position order is correct.
   if (matches.length >= 2) {
     const originIdx = firstMarkerIndex(lower, ORIGIN_MARKERS);
     if (originIdx >= 0) {
@@ -258,7 +292,7 @@ export function extractCitiesFromInput(text: string): {
   }
 
   const confidence: 'high' | 'medium' | 'low' =
-    ordered.length >= 2 ? 'high' : ordered.length === 1 ? 'medium' : lowConfCity ? 'low' : 'low';
+    ordered.length >= 2 ? 'high' : ordered.length === 1 ? 'medium' : 'low';
 
   return { cities: ordered, confidence, lowConfCity };
 }
@@ -281,7 +315,7 @@ export function extractContinuousPreferences(text: string): {
   busType: string | null;
   seatType: string | null;
 } {
-  const lower = text.toLowerCase();
+  const lower = (text || '').normalize('NFC').toLowerCase();
   const today = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   const dayAfter = new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0];

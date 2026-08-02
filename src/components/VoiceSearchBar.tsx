@@ -11,6 +11,7 @@ import {
   getRecognitionLang,
   getSpeechRecognitionCtor,
   BACKEND_URL,
+  type SpeakResult,
   type SpeechRecognitionInstance,
   type SpeechRecognitionResultEvent,
   type SpeechRecognitionErrorEvent,
@@ -198,6 +199,7 @@ export default function VoiceSearchBar() {
   const [pipelineLogs, setPipelineLogs] = useState<PipelineLog[]>([]);
   const [debugEntities, setDebugEntities] = useState<DebugEntities>({});
   const [debugOtaUrls, setDebugOtaUrls] = useState<Record<string, string>>({});
+  const [ttsInfo, setTtsInfo] = useState<SpeakResult | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -483,8 +485,18 @@ export default function VoiceSearchBar() {
       setLanguage(parsed.intent.language);
     }
 
-    speakWithBrowser(parsed.spoken_text, parsed.intent.language);
-    addPipelineLog('9. Audio Synthesis', `TTS Audio Spoken: "${parsed.spoken_text}"`, 'success');
+    // Speak the reply in the DETECTED language; report which engine/voice was used
+    // (and never fail silently) so the debug panel reflects reality (ISSUE 4).
+    void speakWithBrowser(parsed.spoken_text, parsed.intent.language).then((r) => {
+      setTtsInfo(r);
+      addPipelineLog(
+        '9. Audio Synthesis',
+        r.ok
+          ? `TTS via ${r.engine}${r.voice ? ` — voice "${r.voice}"` : ''} [${parsed.intent.language}]`
+          : `⚠️ TTS unavailable: ${r.detail} — reply shown as text`,
+        r.ok ? 'success' : 'warn'
+      );
+    });
 
     if (parsed.ready_to_search && parsed.intent.origin && parsed.intent.destination) {
       const params = new URLSearchParams({
@@ -532,32 +544,11 @@ export default function VoiceSearchBar() {
         return;
       }
 
-      setTranscript(data.transcript);
-      setSpokenText(data.spoken_text);
-      setNeedsClarification(data.needs_clarification);
-
-      if (data.intent?.origin && data.intent?.destination) {
-        updateSession({
-          source: data.intent.origin,
-          destination: data.intent.destination,
-          date: data.intent.date || session.date,
-        });
-      }
-
-      if (data.intent?.language && data.intent.language !== currentLanguage) {
-        setLanguage(data.intent.language);
-      }
-
-      speakWithBrowser(data.spoken_text, data.intent?.language || currentLanguage);
-
-      if (data.ready_to_search && data.intent.origin && data.intent.destination) {
-        const params = new URLSearchParams({
-          origin: data.intent.origin,
-          destination: data.intent.destination,
-          date: data.intent.date || new Date().toISOString().split('T')[0],
-        });
-        setTimeout(() => navigate(`/results?${params.toString()}`), 1800);
-      }
+      // Use the backend purely for Whisper STT, then run the robust client-side NLU on
+      // its transcript. This keeps native-script city extraction, spoken-city override,
+      // form auto-fill, and language-correct TTS identical to the live-preview path
+      // (and avoids the backend's weaker single-pass intent extraction).
+      processTextDirectly(data.transcript);
     } catch (err) {
       addPipelineLog('Backend Fallback', `Backend Whisper upload failed (${err}). Parsing local transcript preview...`, 'warn');
       const previewText = fullTranscriptRef.current || transcript;
@@ -650,9 +641,14 @@ export default function VoiceSearchBar() {
       )}
 
       {spokenText && (
-        <div className="flex items-start gap-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 p-4 text-emerald-200">
-          <Volume2 className="h-5 w-5 shrink-0 text-emerald-400 mt-0.5" />
-          <p className="text-sm font-medium leading-relaxed">{spokenText}</p>
+        <div className="flex flex-col gap-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 p-4 text-emerald-200">
+          <div className="flex items-start gap-3">
+            <Volume2 className="h-5 w-5 shrink-0 text-emerald-400 mt-0.5" />
+            <p className="text-sm font-medium leading-relaxed">{spokenText}</p>
+          </div>
+          {ttsInfo && !ttsInfo.ok && (
+            <p className="pl-8 text-[11px] font-semibold text-amber-300">🔇 Audio unavailable ({ttsInfo.detail}) — reply shown above as text.</p>
+          )}
         </div>
       )}
 
@@ -693,6 +689,27 @@ export default function VoiceSearchBar() {
             <div className="bg-white/5 p-2 rounded border border-white/10">
               <span className="text-slate-400 block">Destination City:</span>
               <span className="font-bold text-purple-300">{session.destination || 'Not Extracted'}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">Travel Date:</span>
+              <span className="font-bold text-blue-300">{session.date || '—'}</span>
+            </div>
+            <div className="bg-white/5 p-2 rounded border border-white/10">
+              <span className="text-slate-400 block">TTS Engine / Voice:</span>
+              <span
+                className={`font-bold ${
+                  ttsInfo ? (ttsInfo.ok ? 'text-emerald-300' : 'text-amber-300') : 'text-slate-400'
+                }`}
+              >
+                {ttsInfo
+                  ? ttsInfo.ok
+                    ? `${ttsInfo.engine}${ttsInfo.voice ? ` — ${ttsInfo.voice}` : ''}`
+                    : `unavailable · ${ttsInfo.detail}`
+                  : 'Not spoken yet'}
+              </span>
             </div>
           </div>
 

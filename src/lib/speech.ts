@@ -57,8 +57,19 @@ export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition || w.webkitSpeechRecognition;
 }
 
+// Reports which engine actually voiced the reply so the UI/debug panel can show it
+// and so a silent failure is never possible.
+export interface SpeakResult {
+  engine: 'browser' | 'edge-tts' | 'none';
+  voice?: string;
+  ok: boolean;
+  detail?: string;
+}
+
 let ttsAudio: HTMLAudioElement | null = null;
 
+// Wait for speechSynthesis voices to load (they populate asynchronously, and on the
+// first call getVoices() is often empty until the 'voiceschanged' event fires).
 async function loadVoices(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> {
   const existing = synth.getVoices();
   if (existing.length) return existing;
@@ -75,21 +86,28 @@ async function loadVoices(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[
       // older browsers expose onvoiceschanged instead of addEventListener
       synth.onvoiceschanged = finish;
     }
-    setTimeout(finish, 600);
+    setTimeout(finish, 800);
   });
 }
 
-async function playBackendTts(text: string, languageCode: string): Promise<void> {
+async function playBackendTts(text: string, languageCode: string): Promise<SpeakResult> {
   try {
     const res = await fetch(`${BACKEND_URL}/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, language: languageCode }),
     });
-    // 204 => this language has no production voice; caller shows text only.
-    if (!res.ok) return;
+    // 204 => this language has no production edge-tts voice; caller shows text only.
+    if (res.status === 204) {
+      return { engine: 'none', ok: false, detail: `no ${languageCode} voice available (text only)` };
+    }
+    if (!res.ok) {
+      return { engine: 'none', ok: false, detail: `TTS unavailable (backend HTTP ${res.status})` };
+    }
     const blob = await res.blob();
-    if (!blob.size) return;
+    if (!blob.size) {
+      return { engine: 'none', ok: false, detail: 'TTS unavailable (empty audio)' };
+    }
     const url = URL.createObjectURL(blob);
     if (ttsAudio) {
       try {
@@ -103,16 +121,18 @@ async function playBackendTts(text: string, languageCode: string): Promise<void>
     await ttsAudio.play().catch(() => {
       /* autoplay may be blocked; text is already shown */
     });
+    return { engine: 'edge-tts', voice: `${languageCode}-IN edge-tts`, ok: true };
   } catch {
-    /* network/backend unavailable -> text-only fallback */
+    return { engine: 'none', ok: false, detail: 'TTS unavailable (backend unreachable)' };
   }
 }
 
 // Speak `text` in the given language. Prefers a matching on-device browser voice;
-// if none exists (common for ml/te/ta/kn/etc. on desktop) it falls back to the
-// backend edge-tts MP3 so the reply is still heard in the correct language.
-export async function speakWithBrowser(text: string, languageCode: string): Promise<void> {
-  if (!text || !text.trim()) return;
+// if none exists (common for te/ta/kn/ml on Windows Chrome) it falls back to the
+// backend edge-tts MP3 so the reply is heard in the correct language — never with a
+// wrong-language voice. Returns which engine/voice was used (or why none was).
+export async function speakWithBrowser(text: string, languageCode: string): Promise<SpeakResult> {
+  if (!text || !text.trim()) return { engine: 'none', ok: false, detail: 'empty text' };
   const targetLang = getRecognitionLang(languageCode);
 
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -127,11 +147,12 @@ export async function speakWithBrowser(text: string, languageCode: string): Prom
       utterance.lang = targetLang;
       utterance.voice = matched;
       synth.speak(utterance);
-      return;
+      return { engine: 'browser', voice: matched.name, ok: true };
     }
-    // Stop any queued English speech before using the backend voice.
+    // No native voice for this language -> stop any queued speech and use edge-tts
+    // rather than speaking in the wrong language.
     synth.cancel();
   }
 
-  await playBackendTts(text, languageCode);
+  return playBackendTts(text, languageCode);
 }
