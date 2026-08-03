@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Star, Clock, Users, Snowflake, Fan, ExternalLink } from 'lucide-react';
+import { Star, Clock, Users, Snowflake, Fan, ExternalLink, Sparkles, Award } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
+import type { ScoredBusListing } from '../lib/recommendationEngine';
 import { getSessionId } from '../lib/session';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
@@ -10,7 +11,7 @@ import { supabase } from '../lib/supabase';
 import { buildOtaDeepLink, OTA_NAMES, otaSupportsPrefill, getOtaToastMessage } from '../lib/ota';
 
 interface BusCardProps {
-  listing: BusListingWithRoute;
+  listing: BusListingWithRoute | ScoredBusListing;
   index: number;
 }
 
@@ -21,6 +22,9 @@ const OTA_COLORS: Record<string, string> = {
   TravelYaari: 'bg-orange-50 text-orange-600 border-orange-200',
   EaseMyTrip: 'bg-cyan-50 text-cyan-600 border-cyan-200',
   PaytmBus: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  Cleartrip: 'bg-amber-50 text-amber-700 border-amber-200',
+  Goibibo: 'bg-purple-50 text-purple-600 border-purple-200',
+  Ixigo: 'bg-rose-50 text-rose-600 border-rose-200',
 };
 
 export default function BusCard({ listing, index }: BusCardProps) {
@@ -30,15 +34,18 @@ export default function BusCard({ listing, index }: BusCardProps) {
   const { currentLanguage } = useLanguage();
   const [toast, setToast] = useState<string | null>(null);
 
+  const scoredListing = listing as ScoredBusListing;
+  const isAiRecommended = scoredListing.isAiRecommended;
+  const scoreReasons = scoredListing.scoreReasons || [];
+  const aiScore = scoredListing.aiScore;
+
   const searchOrigin = searchParams.get('origin') || session.source || undefined;
   const searchDestination = searchParams.get('destination') || session.destination || undefined;
   const searchDate = searchParams.get('date') || session.date || undefined;
 
   const handleDirectOtaRedirect = () => {
     const deepLink = buildOtaDeepLink(listing, searchOrigin, searchDestination, searchDate);
-    // Open first (keeps the click's user-gesture so popup blockers allow it), then log.
     window.open(deepLink, '_blank', 'noopener,noreferrer');
-    // OTAs without URL prefill (Paytm): tell the user what route/date to enter.
     if (!otaSupportsPrefill(listing.ota_source)) {
       setToast(
         getOtaToastMessage(
@@ -58,9 +65,7 @@ export default function BusCard({ listing, index }: BusCardProps) {
         ota_source: listing.ota_source,
         session_id: getSessionId(),
       })
-      .then(undefined, () => {
-        /* click logging is best-effort */
-      });
+      .then(undefined, () => {});
   };
 
   const formatDuration = (mins: number) => {
@@ -76,10 +81,21 @@ export default function BusCard({ listing, index }: BusCardProps) {
 
   return (
     <div
-      className="card animate-fade-in-up p-5 transition-all hover:border-slate-300 hover:shadow-md"
+      className={`card animate-fade-in-up p-5 transition-all relative ${
+        isAiRecommended
+          ? 'bg-gradient-to-r from-amber-500/5 via-emerald-500/5 to-blue-500/5 border-amber-400/80 ring-2 ring-amber-400/40 shadow-lg'
+          : 'hover:border-slate-300 hover:shadow-md'
+      }`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {/* AI Recommended Badge */}
+      {isAiRecommended && (
+        <div className="absolute -top-3 left-4 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-emerald-600 px-3 py-0.5 text-[11px] font-black text-white shadow-md">
+          <Award className="h-3.5 w-3.5" /> 🏆 AI Recommended ({aiScore}% Match)
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pt-1">
         {/* Operator info */}
         <div className="flex-1">
           <div className="mb-2 flex items-center gap-2">
@@ -91,8 +107,14 @@ export default function BusCard({ listing, index }: BusCardProps) {
                 <Star className="h-3 w-3 fill-current text-amber-500" /> {listing.rating}
               </span>
             )}
+            {aiScore && !isAiRecommended && (
+              <span className="badge bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px]">
+                {aiScore}% Score
+              </span>
+            )}
           </div>
           <h3 className="text-base font-bold text-slate-900">{listing.operator_name}</h3>
+          
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="badge bg-slate-100 text-slate-600 capitalize font-medium">
               {listing.bus_type}
@@ -105,6 +127,17 @@ export default function BusCard({ listing, index }: BusCardProps) {
               {listing.bus_model}
             </span>
           </div>
+
+          {/* Transparent AI Score Reasons */}
+          {scoreReasons.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1 text-[10px]">
+              {scoreReasons.map((reason, idx) => (
+                <span key={idx} className="rounded bg-slate-100 text-slate-700 px-2 py-0.5 font-semibold">
+                  ✓ {reason}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Timing */}
@@ -144,8 +177,6 @@ export default function BusCard({ listing, index }: BusCardProps) {
         </div>
       </div>
 
-      {/* Toast for prefill-impossible OTAs (e.g. Paytm) — tells the user, in their
-          language, exactly which route/date to enter on the opened site. */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl border border-white/10 max-w-[92vw] text-center">
           {toast}

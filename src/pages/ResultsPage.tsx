@@ -1,11 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { BusListingWithRoute } from '../lib/types';
 import SearchForm from '../components/SearchForm';
 import BusCard from '../components/BusCard';
 import FilterPanel, { FilterState } from '../components/FilterPanel';
-import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink, Sparkles, Clock, Award } from 'lucide-react';
+import PricePredictionCard from '../components/PricePredictionCard';
+import TravelWatchModal from '../components/TravelWatchModal';
+import { rankAndScoreListings } from '../lib/recommendationEngine';
+import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink, Sparkles, Clock, Award, Bell } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 import { computeBreakJourneyRoutes, hasDirectBuses, BreakJourneyRoute } from '../lib/breakJourneyService';
@@ -13,7 +16,7 @@ import { buildOtaDeepLink } from '../lib/ota';
 import { NO_DIRECT_MESSAGES, CONNECTING_CHOICE_PROMPT, CONNECTING_CHOICE_LABELS } from '../lib/agenticAiService';
 import { speakWithBrowser } from '../lib/speech';
 
-type SortOption = 'price_low' | 'price_high' | 'rating' | 'duration';
+type SortOption = 'price_low' | 'price_high' | 'rating' | 'duration' | 'ai_score';
 
 const DEFAULT_FILTERS: FilterState = {
   busTypes: [],
@@ -39,7 +42,7 @@ function generateDynamicListings(origin: string, destination: string, travelDate
     { name: 'Jabbar Travels', model: 'volvo', type: 'sleeper', ac: 'ac' }
   ];
   
-  const otas = ['redBus', 'MakeMyTrip', 'AbhiBus', 'TravelYaari', 'EaseMyTrip', 'PaytmBus'];
+  const otas = ['redBus', 'MakeMyTrip', 'AbhiBus', 'TravelYaari', 'EaseMyTrip', 'PaytmBus', 'Cleartrip', 'Goibibo', 'Ixigo'];
   const routeId = `${origin}-${destination}`;
   const mockListings: BusListingWithRoute[] = [];
 
@@ -93,6 +96,7 @@ function generateDynamicListings(origin: string, destination: string, travelDate
 
 export default function ResultsPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { t, getCityName, currentLanguage } = useLanguage();
   const { session, setSearchRoute } = useSearch();
   
@@ -113,8 +117,9 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [sort, setSort] = useState<SortOption>('price_low');
+  const [sort, setSort] = useState<SortOption>('ai_score');
   const [showFilters, setShowFilters] = useState(false);
+  const [showWatchModal, setShowWatchModal] = useState(false);
 
   useEffect(() => {
     if (!origin || !destination || !date) {
@@ -129,8 +134,6 @@ export default function ResultsPage() {
       setError(null);
       setSelectedBreakId(null);
 
-      // BUG 4: when the route has no direct buses, surface connecting (break)
-      // journeys instead of an empty list.
       if (!hasDirectBuses(origin, destination)) {
         setListings([]);
         setBreakRoutes(computeBreakJourneyRoutes(origin, destination, date));
@@ -140,8 +143,6 @@ export default function ResultsPage() {
       }
 
       setNoDirect(false);
-      setBreakRoutes([]);
-
       const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000));
 
       const dbPromise = (async () => {
@@ -190,20 +191,12 @@ export default function ResultsPage() {
     };
   }, [origin, destination, date]);
 
-  // Announce the "no direct buses" message aloud in the user's language (BUG 4).
-  useEffect(() => {
-    if (!loading && noDirect && origin && destination) {
-      const msg = (NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(
-        getCityName(origin),
-        getCityName(destination)
-      );
-      void speakWithBrowser(msg, currentLanguage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, noDirect, origin, destination, currentLanguage]);
+  const scoredListings = useMemo(() => {
+    return rankAndScoreListings(listings);
+  }, [listings]);
 
   const filtered = useMemo(() => {
-    let result = [...listings];
+    let result = [...scoredListings];
 
     if (filters.busTypes.length > 0) {
       result = result.filter((l) => filters.busTypes.includes(l.bus_type));
@@ -222,6 +215,9 @@ export default function ResultsPage() {
     }
 
     switch (sort) {
+      case 'ai_score':
+        result.sort((a, b) => b.aiScore - a.aiScore);
+        break;
       case 'price_low':
         result.sort((a, b) => a.price - b.price);
         break;
@@ -237,9 +233,14 @@ export default function ResultsPage() {
     }
 
     return result;
-  }, [listings, filters, sort]);
+  }, [scoredListings, filters, sort]);
 
   const cheapestPrice = listings.length > 0 ? Math.min(...listings.map((l) => l.price)) : 0;
+
+  const handleSelectPredictionDate = (newDate: string) => {
+    setSearchRoute(origin, destination, newDate);
+    navigate(`/results?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${newDate}`);
+  };
 
   if (!origin || !destination) {
     return (
@@ -257,30 +258,42 @@ export default function ResultsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <SearchForm compact />
 
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header bar with AI Travel Watch trigger */}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">
             {getCityName(origin)} → {getCityName(destination)}
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 mt-0.5">
             {loading ? t('processing') : `${filtered.length} ${t('busesFound')} for ${date}`}
             {!loading && listings.length > 0 && cheapestPrice > 0 && (
               <span className="ml-2 font-semibold text-emerald-600">· {t('cheapestDeal')} ₹{cheapestPrice.toLocaleString('en-IN')}</span>
             )}
           </p>
         </div>
+
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowWatchModal(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-400 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/20 transition-all shadow-sm"
+          >
+            <Bell className="h-4 w-4 text-amber-600 animate-pulse" />
+            <span>🔔 Create AI Travel Watch</span>
+          </button>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="btn-secondary lg:hidden"
           >
             <SlidersHorizontal className="h-4 w-4" /> {t('filterTitle')}
           </button>
+
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortOption)}
-            className="input-field w-auto"
+            className="input-field w-auto text-xs font-bold"
           >
+            <option value="ai_score">🏆 AI Recommended First</option>
             <option value="price_low">{t('priceLowHigh')}</option>
             <option value="price_high">{t('priceHighLow')}</option>
             <option value="rating">{t('ratingHighLow')}</option>
@@ -289,6 +302,19 @@ export default function ResultsPage() {
         </div>
       </div>
 
+      {/* Smart Weekly Price Prediction Forecast Card */}
+      {!loading && origin && destination && (
+        <div className="mt-6">
+          <PricePredictionCard
+            origin={origin}
+            destination={destination}
+            travelDate={date}
+            onSelectDate={handleSelectPredictionDate}
+          />
+        </div>
+      )}
+
+      {/* Main Results Layout */}
       <div className="mt-6 flex gap-6">
         <aside className="hidden w-64 shrink-0 lg:block">
           <FilterPanel
@@ -327,14 +353,14 @@ export default function ResultsPage() {
             </div>
           ) : (
             <>
-              {/* Direct Bus Cards */}
+              {/* Direct Bus Listings Scored by AI */}
               <div className="flex flex-col gap-4">
                 {filtered.map((listing, i) => (
                   <BusCard key={listing.id} listing={listing} index={i} />
                 ))}
               </div>
 
-              {/* BUG 4: No-direct-bus connecting (break) journeys */}
+              {/* Agentic Smart Break-Journeys Section */}
               {breakRoutes.length > 0 && (
                 <div className="mt-10 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-6 text-white border border-amber-500/30 shadow-2xl space-y-4">
                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -344,16 +370,13 @@ export default function ResultsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h2 className="text-lg font-bold text-white">No Direct Buses — Connecting Journeys</h2>
+                          <h2 className="text-lg font-bold text-white">Agentic Smart Break-Journeys</h2>
                           <span className="badge bg-amber-400 text-slate-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Sparkles className="h-3 w-3 fill-current" /> AI Recommended
                           </span>
                         </div>
-                        <p className="text-xs text-amber-200 mt-1">
-                          {(NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(getCityName(origin), getCityName(destination))}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Connecting transfer options via major hubs for {date}
+                        <p className="text-xs text-slate-300">
+                          Connecting transfer options via major hubs when direct seat availability is tight on {date}
                         </p>
                       </div>
                     </div>
@@ -363,9 +386,6 @@ export default function ResultsPage() {
                     {breakRoutes.map((br, index) => {
                       const leg1Url = buildOtaDeepLink(br.leg1, br.leg1.routes.origin_city, br.leg1.routes.destination_city, date);
                       const leg2Url = buildOtaDeepLink(br.leg2, br.leg2.routes.origin_city, br.leg2.routes.destination_city, date);
-                      const labels = CONNECTING_CHOICE_LABELS[currentLanguage] || CONNECTING_CHOICE_LABELS.en;
-                      const choicePrompt = CONNECTING_CHOICE_PROMPT[currentLanguage] || CONNECTING_CHOICE_PROMPT.en;
-                      const isSelected = selectedBreakId === br.id;
 
                       return (
                         <div key={br.id} className="rounded-xl bg-white/5 p-4 border border-white/10 flex flex-col justify-between gap-3 hover:border-amber-400/40 transition-all">
@@ -404,49 +424,24 @@ export default function ResultsPage() {
                             </div>
                           </div>
 
-                          {/* Ask the user what to do next, in their language (BUG 4). */}
-                          {!isSelected ? (
-                            <button
-                              onClick={() => setSelectedBreakId(br.id)}
-                              className="w-full text-center py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 font-bold text-xs text-slate-900 flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
+                          <div className="flex gap-2">
+                            <a
+                              href={leg1Url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
                             >
-                              {labels.select}
-                            </button>
-                          ) : (
-                            <div className="space-y-2">
-                              <p className="text-[11px] text-amber-200 font-medium">{choicePrompt}</p>
-                              <div className="grid grid-cols-3 gap-2">
-                                <a
-                                  href={leg1Url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-center py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
-                                >
-                                  {labels.leg1} <ExternalLink className="h-3 w-3" />
-                                </a>
-                                <a
-                                  href={leg2Url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-center py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
-                                >
-                                  {labels.leg2} <ExternalLink className="h-3 w-3" />
-                                </a>
-                                <button
-                                  onClick={() => {
-                                    window.open(leg1Url, '_blank', 'noopener,noreferrer');
-                                    window.open(leg2Url, '_blank', 'noopener,noreferrer');
-                                  }}
-                                  className="text-center py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
-                                >
-                                  {labels.both}
-                                </button>
-                              </div>
-                              <p className="text-[10px] text-slate-500">
-                                Leg 1 via {br.leg1.ota_source} · Leg 2 via {br.leg2.ota_source}
-                              </p>
-                            </div>
-                          )}
+                              Book Leg 1 ({br.leg1.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                            <a
+                              href={leg2Url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
+                            >
+                              Book Leg 2 ({br.leg2.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
                         </div>
                       );
                     })}
@@ -457,6 +452,17 @@ export default function ResultsPage() {
           )}
         </div>
       </div>
+
+      {/* AI Travel Watch Modal */}
+      {showWatchModal && (
+        <TravelWatchModal
+          origin={origin}
+          destination={destination}
+          travelDate={date}
+          onClose={() => setShowWatchModal(false)}
+          onCreated={() => alert('AI Travel Watch created! View details in your User Dashboard.')}
+        />
+      )}
     </div>
   );
 }

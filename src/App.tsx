@@ -11,6 +11,7 @@ import ResultsPage from './pages/ResultsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import AdminPage from './pages/AdminPage';
+import DashboardPage from './pages/DashboardPage';
 import ChatbotWidget from './components/ChatbotWidget';
 
 function AppContent() {
@@ -22,6 +23,7 @@ function AppContent() {
           <Route path="/" element={<WelcomePage />} />
           <Route path="/search" element={<HomePage />} />
           <Route path="/results" element={<ResultsPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route
