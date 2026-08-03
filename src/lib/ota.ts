@@ -46,7 +46,19 @@ export function getOtaToastMessage(lang: string, origin: string, destination: st
   return `OTA booking page opened! Search details: ${origin} to ${destination} on ${dateStr}.`;
 }
 
-// 100% Verified Production URL Formats for all 9 OTAs
+export const OTA_HOME_URLS: Record<string, string> = {
+  redBus: 'https://www.redbus.in',
+  MakeMyTrip: 'https://www.makemytrip.com/bus/',
+  AbhiBus: 'https://www.abhibus.com',
+  EaseMyTrip: 'https://www.easemytrip.com/bus/',
+  Goibibo: 'https://www.goibibo.com/bus/',
+  Ixigo: 'https://www.ixigo.com/buses',
+  PaytmBus: 'https://paytm.com/bus-tickets',
+  TravelYaari: 'https://www.travelyaari.com',
+  Cleartrip: 'https://www.cleartrip.com/buses',
+};
+
+// 100% Verified Production URL Formats for all 9 OTAs (including Cleartrip Bus)
 export const OTA_ADAPTERS: Record<string, BusOTAAdapter> = {
   redBus: {
     id: 'redBus',
@@ -80,7 +92,6 @@ export const OTA_ADAPTERS: Record<string, BusOTAAdapter> = {
       const originSlug = slugify(origin);
       const destSlug = slugify(destination);
       const { day, monthNum, year } = parseDateComponents(dateStr);
-      // AbhiBus official route format uses /bus-ticket-booking/
       return `https://www.abhibus.com/bus-ticket-booking/${originSlug}-to-${destSlug}?date=${year}-${monthNum}-${day}`;
     },
     getOffers: () => [
@@ -94,7 +105,6 @@ export const OTA_ADAPTERS: Record<string, BusOTAAdapter> = {
       const originSlug = slugify(origin);
       const destSlug = slugify(destination);
       const { day, monthNum, year } = parseDateComponents(dateStr);
-      // EaseMyTrip official route format: /bus/buses-from-origin-to-destination.html
       return `https://www.easemytrip.com/bus/buses-from-${originSlug}-to-${destSlug}.html?date=${year}-${monthNum}-${day}`;
     },
   },
@@ -102,10 +112,7 @@ export const OTA_ADAPTERS: Record<string, BusOTAAdapter> = {
     id: 'Goibibo',
     name: 'Goibibo Bus',
     generateUrl: (origin, destination, dateStr) => {
-      const originSlug = slugify(origin);
-      const destSlug = slugify(destination);
       const { day, monthNum, year } = parseDateComponents(dateStr);
-      // Goibibo official route search format
       return `https://www.goibibo.com/bus/search/?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${year}${monthNum}${day}`;
     },
   },
@@ -114,7 +121,6 @@ export const OTA_ADAPTERS: Record<string, BusOTAAdapter> = {
     name: 'Ixigo Bus',
     generateUrl: (origin, destination, dateStr) => {
       const { day, monthNum, year } = parseDateComponents(dateStr);
-      // Ixigo official route search query format
       return `https://www.ixigo.com/buses/search?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(destination)}&date=${year}-${monthNum}-${day}`;
     },
   },
@@ -153,37 +159,47 @@ export function buildOtaDeepLink(
   overrideDestination?: string,
   overrideDate?: string
 ): string {
-  let rawOrigin =
-    overrideOrigin ||
-    listing.routes?.origin_city ||
-    listing.origin_city ||
-    listing.origin ||
-    'Visakhapatnam';
+  const otaSource = listing?.ota_source || 'redBus';
+  const homeUrl = OTA_HOME_URLS[otaSource] || 'https://www.redbus.in';
 
-  let rawDestination =
-    overrideDestination ||
-    listing.routes?.destination_city ||
-    listing.destination_city ||
-    listing.destination ||
-    'Hyderabad';
+  try {
+    let rawOrigin =
+      overrideOrigin ||
+      listing?.routes?.origin_city ||
+      listing?.origin_city ||
+      listing?.origin ||
+      'Visakhapatnam';
 
-  // Sanitize any stray "to-" prefixes in city strings
-  rawOrigin = rawOrigin.replace(/^to-/i, '').trim();
-  rawDestination = rawDestination.replace(/^to-/i, '').trim();
+    let rawDestination =
+      overrideDestination ||
+      listing?.routes?.destination_city ||
+      listing?.destination_city ||
+      listing?.destination ||
+      'Hyderabad';
 
-  if (rawOrigin.toLowerCase() === rawDestination.toLowerCase()) {
-    rawDestination = rawOrigin.toLowerCase() === 'visakhapatnam' ? 'Hyderabad' : 'Visakhapatnam';
+    rawOrigin = String(rawOrigin).replace(/^to-/i, '').trim();
+    rawDestination = String(rawDestination).replace(/^to-/i, '').trim();
+
+    if (!rawOrigin || !rawDestination) {
+      console.warn(`[OTA DeepLink Warning] Missing origin or destination for ${otaSource}. Falling back to homepage.`);
+      return homeUrl;
+    }
+
+    if (rawOrigin.toLowerCase() === rawDestination.toLowerCase()) {
+      rawDestination = rawOrigin.toLowerCase() === 'visakhapatnam' ? 'Hyderabad' : 'Visakhapatnam';
+    }
+
+    const travelDate =
+      overrideDate ||
+      listing?.travel_date ||
+      new Date().toISOString().split('T')[0];
+
+    const adapter = OTA_ADAPTERS[otaSource] || OTA_ADAPTERS['redBus'];
+    return adapter.generateUrl(rawOrigin, rawDestination, travelDate);
+  } catch (err) {
+    console.warn(`[OTA DeepLink Exception] Failed to construct URL for ${otaSource}:`, err);
+    return homeUrl;
   }
-
-  const travelDate =
-    overrideDate ||
-    listing.travel_date ||
-    new Date().toISOString().split('T')[0];
-
-  const otaSource = listing.ota_source || 'redBus';
-  const adapter = OTA_ADAPTERS[otaSource] || OTA_ADAPTERS['redBus'];
-
-  return adapter.generateUrl(rawOrigin, rawDestination, travelDate);
 }
 
 export const OTA_NAMES: Record<string, string> = {

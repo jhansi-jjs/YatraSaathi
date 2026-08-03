@@ -4,7 +4,7 @@ import { X, Send, Mic, Square, Sparkles, ExternalLink, RefreshCw } from 'lucide-
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 import { processUserMessage, ChatMessage, ConversationState, getNearbyBoardingPoints } from '../lib/agenticAiService';
-import { speakWithBrowser, getRecognitionLang, getSpeechRecognitionCtor, type SpeechRecognitionInstance, type SpeechRecognitionResultEvent } from '../lib/speech';
+import { speakWithBrowser, getRecognitionLang, getSpeechRecognitionCtor, primeAudio, BACKEND_URL, type SpeechRecognitionInstance, type SpeechRecognitionResultEvent } from '../lib/speech';
 
 export default function ChatbotWidget() {
   const navigate = useNavigate();
@@ -41,12 +41,17 @@ export default function ChatbotWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
   function handleSend(textToSend?: string) {
+    // Bug 3 Fix: Prime audio context on explicit user send gesture
+    primeAudio();
+
     const query = (textToSend || input).trim();
     if (!query) return;
 
@@ -71,7 +76,8 @@ export default function ChatbotWidget() {
 
       const { responseMessage, nextState } = processUserMessage(query, currentState);
 
-      if (nextState.language !== currentLanguage) {
+      // Bug 5 Fix: Update LanguageContext live per turn based on detected input language
+      if (nextState.language && nextState.language !== currentLanguage) {
         setLanguage(nextState.language);
       }
 
@@ -89,7 +95,8 @@ export default function ChatbotWidget() {
       setMessages((prev) => [...prev, responseMessage]);
       setIsTyping(false);
 
-      void speakWithBrowser(responseMessage.text, responseMessage.language || currentLanguage);
+      // Speak response in detected language using robust TTS engine chain
+      void speakWithBrowser(responseMessage.text, responseMessage.language || nextState.language || currentLanguage);
 
       if (nextState.origin && nextState.destination) {
         const params = new URLSearchParams({
@@ -106,6 +113,7 @@ export default function ChatbotWidget() {
   }
 
   function handleQuickChip(chipText: string) {
+    primeAudio();
     if (chipText === '📍 My Location') {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
@@ -130,14 +138,19 @@ export default function ChatbotWidget() {
     }
   }
 
-  function toggleVoiceInput() {
+  async function toggleVoiceInput() {
+    primeAudio();
+
     if (isRecording) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch {
-          /* recognition already stopped */
-        }
+        } catch {}
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {}
       }
       setIsRecording(false);
       return;
@@ -145,8 +158,42 @@ export default function ChatbotWidget() {
 
     const SpeechRecognition = getSpeechRecognitionCtor();
 
+    // Bug 4 Fix: If Web Speech is unsupported (Safari, Firefox), route seamlessly to MediaRecorder -> Whisper
     if (!SpeechRecognition) {
-      alert('Speech Recognition is not supported in this browser.');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        chunksRef.current = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          if (audioBlob.size > 0) {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'chat_rec.webm');
+            formData.append('selected_language', currentLanguage);
+            try {
+              const res = await fetch(`${BACKEND_URL}/voice-search`, { method: 'POST', body: formData });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcript) handleSend(data.transcript);
+              }
+            } catch {}
+          }
+          setIsRecording(false);
+        };
+
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
+      } catch {
+        alert('Microphone access required. Please allow mic permissions.');
+        setIsRecording(false);
+      }
       return;
     }
 
@@ -154,7 +201,6 @@ export default function ChatbotWidget() {
       const recog = new SpeechRecognition();
       recog.continuous = false;
       recog.interimResults = false;
-      // Transcribe in the user's selected language's native script (BUG 1).
       recog.lang = getRecognitionLang(currentLanguage);
 
       recog.onresult = (event: SpeechRecognitionResultEvent) => {
@@ -191,60 +237,63 @@ export default function ChatbotWidget() {
       {
         id: `welcome-${Date.now()}`,
         sender: 'assistant',
-        text: 'Chat reset! How can I assist your trip today?',
+        text: 'Reset complete! Where would you like to travel today?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actionChips: ['🚌 Search Buses', '📍 My Location'],
+        actionChips: ['🚌 Visakhapatnam to Hyderabad', '🚌 Vijayawada to Bengaluru', '💰 Cheapest Bus'],
       },
     ]);
   }
 
   return (
     <>
-      {/* Floating Action Trigger Button */}
+      {/* Floating Chat Trigger Button */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-2xl hover:scale-110 transition-transform duration-300 border-2 border-white/20 group"
-          aria-label="Open AI Travel Companion"
+          onClick={() => {
+            primeAudio();
+            setIsOpen(true);
+          }}
+          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-2xl hover:scale-110 transition-all cursor-pointer group"
+          title="Open AI Travel Assistant"
         >
-          <Sparkles className="h-7 w-7 text-amber-300 animate-pulse" />
-          <span className="absolute -top-1 -right-1 flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+          <Sparkles className="h-6 w-6 group-hover:rotate-12 transition-transform" />
+          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
           </span>
         </button>
       )}
 
-      {/* Floating Chat Modal */}
+      {/* Chatbot Window */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-50 flex h-[580px] w-[92vw] max-w-[420px] flex-col overflow-hidden rounded-3xl bg-slate-900/95 backdrop-blur-2xl border border-white/15 text-white shadow-2xl transition-all duration-300">
-          {/* Top Header */}
-          <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/80 px-5 py-3.5">
-            <div className="flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 shadow-md">
-                <Sparkles className="h-5 w-5 text-white" />
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
+        <div className="fixed bottom-6 right-6 z-50 flex h-[540px] w-[360px] sm:w-[400px] flex-col overflow-hidden rounded-2xl bg-slate-900 text-white border border-white/10 shadow-2xl animate-fade-in-up">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/80 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-emerald-500 shadow">
+                <Sparkles className="h-4 w-4 text-white" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  Chicha AI Companion
-                  <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider bg-emerald-500/20 px-1.5 py-0.5 rounded">Online</span>
+                  Chicha AI Saathi
+                  <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] px-1.5 py-0.2 rounded-full">
+                    Online
+                  </span>
                 </h3>
-                <p className="text-[11px] text-slate-400">Multilingual Travel Assistant</p>
+                <p className="text-[10px] text-slate-400">12 Languages · Voice & Chat Agent</p>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
               <button
                 onClick={resetChat}
-                title="Reset Conversation"
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+                title="Reset Chat"
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                title="Close"
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -252,75 +301,33 @@ export default function ChatbotWidget() {
             </div>
           </div>
 
-          {/* Messages List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Messages Feed */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl p-3.5 text-xs sm:text-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-sm ${
                     msg.sender === 'user'
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-br-none shadow-md'
-                      : 'bg-slate-800/90 border border-white/10 text-slate-100 rounded-bl-none shadow-md'
+                      ? 'bg-blue-600 text-white rounded-br-none'
+                      : 'bg-slate-800 text-slate-100 border border-white/10 rounded-bl-none'
                   }`}
                 >
                   <p>{msg.text}</p>
-
-                  {/* Render Break Journey Multi-Leg Cards */}
-                  {msg.breakRoutes && msg.breakRoutes.length > 0 && (
-                    <div className="mt-3 space-y-3 pt-2 border-t border-white/10">
-                      <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                        🛣️ Smart Break-Journey Alternatives:
-                      </p>
-                      {msg.breakRoutes.map((br) => (
-                        <div
-                          key={br.id}
-                          className="rounded-xl bg-slate-950/80 p-3 border border-amber-500/30 text-left text-xs space-y-2"
-                        >
-                          <div className="flex items-center justify-between text-amber-400 font-semibold">
-                            <span>Via {br.transferHub} Transfer</span>
-                            <span>₹{br.totalPrice} Total</span>
-                          </div>
-                          <div className="text-[11px] text-slate-300 space-y-1">
-                            <p>🚌 Leg 1: {br.leg1.routes.origin_city} → {br.leg1.routes.destination_city} ({br.leg1.operator_name})</p>
-                            <p>🚌 Leg 2: {br.leg2.routes.origin_city} → {br.leg2.routes.destination_city} ({br.leg2.operator_name})</p>
-                          </div>
-                          <div className="flex gap-2 pt-1">
-                            <a
-                              href={br.leg1.deep_link_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-1 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white flex items-center justify-center gap-1"
-                            >
-                              Book Leg 1 <ExternalLink className="h-3 w-3" />
-                            </a>
-                            <a
-                              href={br.leg2.deep_link_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-bold text-[11px] text-white flex items-center justify-center gap-1"
-                            >
-                              Book Leg 2 <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <span className="mt-1 block text-[10px] opacity-60 text-right">{msg.timestamp}</span>
                 </div>
 
-                {/* Quick Action Chips */}
-                {msg.actionChips && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5 max-w-[90%]">
+                <span className="mt-1 text-[9px] text-slate-500 px-1">{msg.timestamp}</span>
+
+                {/* Action Chips */}
+                {msg.actionChips && msg.actionChips.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {msg.actionChips.map((chip, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleQuickChip(chip)}
-                        className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-[11px] font-medium text-blue-300 hover:bg-blue-500/20 hover:border-blue-400 transition-colors"
+                        className="rounded-full bg-white/5 border border-white/15 px-2.5 py-1 text-[10px] font-semibold text-blue-300 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all cursor-pointer"
                       >
                         {chip}
                       </button>
@@ -331,20 +338,16 @@ export default function ChatbotWidget() {
             ))}
 
             {isTyping && (
-              <div className="flex items-center gap-2 rounded-xl bg-slate-800/80 px-4 py-2.5 text-xs text-slate-400 w-fit">
-                <span className="flex gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:0.2s]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]" />
-                </span>
+              <div className="flex items-center gap-2 text-slate-400 italic text-[11px] bg-slate-800/50 p-2 rounded-xl w-max">
+                <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-spin" />
                 <span>Chicha is thinking...</span>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Bottom Chat Bar */}
-          <div className="border-t border-white/10 bg-slate-800/90 p-3">
+          {/* Input Bar */}
+          <div className="border-t border-white/10 bg-slate-800/60 p-3">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -355,10 +358,12 @@ export default function ChatbotWidget() {
               <button
                 type="button"
                 onClick={toggleVoiceInput}
-                className={`p-2.5 rounded-xl text-white transition-colors ${
-                  isRecording ? 'bg-red-500 animate-pulse' : 'bg-slate-700 hover:bg-slate-600'
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all ${
+                  isRecording
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
                 }`}
-                title="Speak to Assistant"
+                title="Voice Input"
               >
                 {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </button>
@@ -367,14 +372,14 @@ export default function ChatbotWidget() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Chicha (e.g. buses from Vizag to Hyd)..."
-                className="flex-1 rounded-xl border border-white/10 bg-slate-900/80 px-3.5 py-2 text-xs text-white placeholder-slate-400 outline-none focus:border-blue-500"
+                placeholder="Type or speak (e.g., Vizag to Hyd)..."
+                className="flex-1 rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500"
               />
 
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 text-white disabled:opacity-40 hover:scale-105 transition-transform"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
               >
                 <Send className="h-4 w-4" />
               </button>

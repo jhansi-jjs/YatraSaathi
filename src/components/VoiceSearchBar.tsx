@@ -10,6 +10,7 @@ import {
   speakWithBrowser,
   getRecognitionLang,
   getSpeechRecognitionCtor,
+  primeAudio,
   BACKEND_URL,
   type SpeakResult,
   type SpeechRecognitionInstance,
@@ -51,8 +52,6 @@ const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
   en: (o, d) => `Got it! You're planning to travel from ${o} to ${d}.`,
 };
 
-// "Server is waking up — using device speech meanwhile" in all 12 languages, shown
-// while the free-tier backend cold-starts (ISSUE 3).
 const SERVER_WAKING_MSG: Record<string, string> = {
   te: '⏳ సర్వర్ మేల్కొంటోంది… ప్రస్తుతం మీ ఫోన్ స్పీచ్ ఉపయోగిస్తున్నాము.',
   hi: '⏳ सर्वर जाग रहा है… तब तक डिवाइस स्पीच का उपयोग हो रहा है।',
@@ -70,7 +69,6 @@ const SERVER_WAKING_MSG: Record<string, string> = {
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// " — 19 Aug 2026" style suffix appended to the spoken confirmation.
 function formatDateSuffix(dateStr: string): string {
   if (!dateStr) return '';
   const parts = dateStr.split('-').map(Number);
@@ -127,8 +125,6 @@ export default function VoiceSearchBar() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const isRecordingRef = useRef<boolean>(false);
   const fullTranscriptRef = useRef<string>('');
-  // Set true when the user intentionally stops, so recorder.onstop knows to process
-  // the captured audio (isRecordingRef is already false by the time onstop fires).
   const shouldProcessRef = useRef<boolean>(false);
 
   function addPipelineLog(stage: string, detail: string, type: 'info' | 'success' | 'warn' | 'error' = 'info') {
@@ -153,6 +149,9 @@ export default function VoiceSearchBar() {
   }, []);
 
   async function startVoiceSearch() {
+    // Bug 3 Fix: Prime audio context on user gesture to prevent browser autoplay blocking
+    primeAudio();
+
     setMicError(null);
     setSpokenText('');
     setTranscript('');
@@ -164,11 +163,8 @@ export default function VoiceSearchBar() {
 
     addPipelineLog('1. Mic Capture', 'Microphone recording initialized. Capturing audio stream...', 'info');
 
-    // Warm up the free-tier Render backend (it sleeps when idle, 30-60s cold start) so
-    // Whisper STT is ready by the time recording stops. Meanwhile the browser Web Speech
-    // preview gives instant recognition, so the pipeline works even while the server is cold.
     setServerStatus('waking');
-    setSttEngine('Browser Web Speech (warming backend)');
+    setSttEngine('Browser Web Speech / Whisper Fallback');
     void fetch(`${BACKEND_URL}/health`)
       .then((r) => {
         setServerStatus(r.ok ? 'ready' : 'offline');
@@ -176,10 +172,10 @@ export default function VoiceSearchBar() {
       })
       .catch(() => {
         setServerStatus('offline');
-        addPipelineLog('0. Backend Warm-up', 'Backend unreachable — will use browser Web Speech for STT.', 'warn');
+        addPipelineLog('0. Backend Warm-up', 'Backend unreachable — using browser Web Speech for STT.', 'warn');
       });
 
-    // First preference: Direct MediaRecorder Audio Stream for robust backend Whisper processing
+    // 1. MediaRecorder audio capture path (works in ALL browsers: Chrome, Safari, Firefox, Edge)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -204,17 +200,15 @@ export default function VoiceSearchBar() {
       recorder.start(100);
       mediaRecorderRef.current = recorder;
       addPipelineLog('1. MediaRecorder', 'MediaRecorder started. Recording WebM audio stream...', 'success');
-    } catch {
-      addPipelineLog('Mic Error', 'Microphone permission denied or audio device missing', 'error');
-      setMicError('Microphone permission required for voice search. Please allow mic access in browser.');
+    } catch (err) {
+      addPipelineLog('Mic Error', `Microphone permission denied or device error: ${err}`, 'error');
+      setMicError('Microphone permission required for voice search. Please allow microphone access in your browser.');
       isRecordingRef.current = false;
       setIsRecording(false);
       return;
     }
 
-    // Optional SpeechRecognition for real-time live preview feedback if supported.
-    // recognition.lang is set from the user's selected language so speech is
-    // transcribed in that language's native script (BUG 1).
+    // 2. Optional SpeechRecognition for real-time live preview (Chrome/Edge)
     const SpeechRecognition = getSpeechRecognitionCtor();
 
     if (SpeechRecognition) {
@@ -238,7 +232,6 @@ export default function VoiceSearchBar() {
         };
 
         recog.onerror = (e: SpeechRecognitionErrorEvent) => {
-          console.log('Browser SpeechRecognition event:', e.error);
           addPipelineLog('STT Preview', `Live preview speech event: ${e.error} (falling back to backend Whisper)`, 'warn');
         };
 
@@ -265,7 +258,7 @@ export default function VoiceSearchBar() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         addPipelineLog('2. Stop Recording', 'Stopping MediaRecorder. Preparing audio blob for upload...', 'info');
-        shouldProcessRef.current = true; // tell onstop to process the captured audio
+        shouldProcessRef.current = true;
         mediaRecorderRef.current.stop();
       } catch {
         /* recorder already stopped */
@@ -306,8 +299,6 @@ export default function VoiceSearchBar() {
       'info'
     );
 
-    // Start from whatever the shared session already knows so a follow-up answer
-    // merges with captured details instead of resetting them (BUG 2).
     let origin: string | null = currentContextOrigin || session.source || null;
     let destination: string | null = session.destination || null;
 
@@ -323,7 +314,6 @@ export default function VoiceSearchBar() {
       }
     }
 
-    // Only overwrite a detail when the utterance mentioned it; otherwise keep session's.
     const mergedDate = prefResult.date || session.date || new Date().toISOString().split('T')[0];
     const mergedTime = prefResult.time || session.time;
     const mergedBusType = prefResult.busType || session.busType;
@@ -354,15 +344,11 @@ export default function VoiceSearchBar() {
     const template = getResponseTemplate(lang);
     let spoken: string;
     if (ready) {
-      // Confirm the parsed route back in the user's language, including the travel
-      // date (BUG 3). Whether the route has direct buses is decided on the Results
-      // page, which shows connecting journeys when there are none (BUG 4).
       const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
       spoken = `${confirmationFn(originNative, destNative)}${formatDateSuffix(mergedDate)}`;
     } else if (cityResult.confidence === 'low' && cityResult.lowConfCity) {
       spoken = template.lowConfidencePrompt(cityResult.lowConfCity);
     } else if (origin) {
-      // Only the destination is missing: ask just for that, in the user's language.
       spoken = template.needDest(originNative);
     } else {
       spoken = CLARIFICATIONS[lang] || CLARIFICATIONS['en'];
@@ -422,12 +408,12 @@ export default function VoiceSearchBar() {
     setSpokenText(parsed.spoken_text);
     setNeedsClarification(parsed.needs_clarification);
 
+    // Bug 5 Fix: Mid-conversation language switching updates LanguageContext on every turn
     if (parsed.intent.language !== currentLanguage) {
       setLanguage(parsed.intent.language);
     }
 
-    // Speak the reply in the DETECTED language; report which engine/voice was used
-    // (and never fail silently) so the debug panel reflects reality (ISSUE 4).
+    // Speak in the detected language using multi-stage TTS fallback chain
     void speakWithBrowser(parsed.spoken_text, parsed.intent.language).then((r) => {
       setTtsInfo(r);
       addPipelineLog(
@@ -468,13 +454,12 @@ export default function VoiceSearchBar() {
     formData.append('selected_language', currentLanguage);
     formData.append('valid_cities', CITIES.join(','));
 
-    // 10s timeout so a cold/sleeping backend never hangs the pipeline.
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 10000);
     const preview = () => fullTranscriptRef.current || transcript;
 
     try {
-      addPipelineLog('4. POST Upload', `Uploading audio to backend ${BACKEND_URL}/voice-search (10s timeout)...`, 'info');
+      addPipelineLog('4. POST Upload', `Uploading audio to backend ${BACKEND_URL}/voice-search...`, 'info');
       const res = await fetch(`${BACKEND_URL}/voice-search`, {
         method: 'POST',
         body: formData,
@@ -490,14 +475,11 @@ export default function VoiceSearchBar() {
 
       const backendText = (data.transcript || '').trim();
       if (backendText) {
-        // Backend for Whisper STT only; robust client-side NLU runs on its transcript
-        // (native-script city extraction, spoken-city/date override, form auto-fill,
-        // language-correct TTS) — identical to the live-preview path.
         setSttEngine('Backend Whisper');
         processTextDirectly(backendText);
         return;
       }
-      // Backend heard nothing — fall back to the browser Web Speech transcript.
+
       const pv = preview();
       if (pv && pv.trim()) {
         setSttEngine('Browser Web Speech (backend empty)');
@@ -513,11 +495,10 @@ export default function VoiceSearchBar() {
       addPipelineLog(
         'Backend Fallback',
         aborted
-          ? 'Backend timed out (10s — likely cold start). Using browser Web Speech transcript.'
+          ? 'Backend timed out (10s). Using browser Web Speech transcript.'
           : `Backend upload failed (${err}). Using browser Web Speech transcript.`,
         'warn'
       );
-      // Never end with no transcript and no message.
       const pv = preview();
       if (pv && pv.trim().length > 0) {
         setSttEngine('Browser Web Speech (backend timeout/fail)');

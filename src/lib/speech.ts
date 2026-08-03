@@ -1,15 +1,12 @@
 // Shared speech helpers: BCP-47 mapping for Web Speech recognition/synthesis,
-// and a speakWithBrowser() that prefers a native browser voice and falls back to
-// the backend edge-tts MP3 endpoint when the browser has no voice for a language.
+// TTS audio priming, and robust fallback handling across browser & backend TTS.
 
 export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
     ? import.meta.env.VITE_BACKEND_URL
     : 'https://yatrasaathi.onrender.com';
 
-// Every supported UI language mapped to its Indian BCP-47 locale tag. Used both to
-// set SpeechRecognition.lang (so speech is transcribed in the native script) and to
-// tag SpeechSynthesisUtterance.lang.
+// Every supported UI language mapped to its Indian BCP-47 locale tag.
 export const LANG_BCP47: Record<string, string> = {
   en: 'en-IN',
   te: 'te-IN',
@@ -29,7 +26,7 @@ export function getRecognitionLang(languageCode: string): string {
   return LANG_BCP47[languageCode] || 'en-IN';
 }
 
-// Minimal Web Speech typings (the DOM lib does not ship SpeechRecognition types).
+// Minimal Web Speech typings
 export interface SpeechRecognitionResultEvent {
   results: ArrayLike<ArrayLike<{ transcript: string }>>;
 }
@@ -57,8 +54,10 @@ export function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition || w.webkitSpeechRecognition;
 }
 
-// Reports which engine actually voiced the reply so the UI/debug panel can show it
-// and so a silent failure is never possible.
+export function isSpeechRecognitionSupported(): boolean {
+  return Boolean(getSpeechRecognitionCtor());
+}
+
 export interface SpeakResult {
   engine: 'browser' | 'edge-tts' | 'none';
   voice?: string;
@@ -66,10 +65,24 @@ export interface SpeakResult {
   detail?: string;
 }
 
-let ttsAudio: HTMLAudioElement | null = null;
+let sharedTtsAudio: HTMLAudioElement | null = null;
 
-// Wait for speechSynthesis voices to load (they populate asynchronously, and on the
-// first call getVoices() is often empty until the 'voiceschanged' event fires).
+// Bug 3 Fix: Autoplay policy compliance — prime an audio element on user gesture
+export function primeAudio(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!sharedTtsAudio) {
+      sharedTtsAudio = new Audio();
+    }
+    // Play an empty silent data URI on explicit user gesture to unblock Audio autoplay policies
+    sharedTtsAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+    void sharedTtsAudio.play().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+// Wait for speechSynthesis voices to load
 async function loadVoices(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> {
   const existing = synth.getVoices();
   if (existing.length) return existing;
@@ -83,7 +96,6 @@ async function loadVoices(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[
     try {
       synth.addEventListener('voiceschanged', finish, { once: true });
     } catch {
-      // older browsers expose onvoiceschanged instead of addEventListener
       synth.onvoiceschanged = finish;
     }
     setTimeout(finish, 800);
@@ -97,44 +109,38 @@ async function playBackendTts(text: string, languageCode: string): Promise<Speak
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, language: languageCode }),
     });
-    // 204 => this language has no production edge-tts voice; caller shows text only.
     if (res.status === 204) {
-      return { engine: 'none', ok: false, detail: `no ${languageCode} voice available (text only)` };
+      return { engine: 'none', ok: false, detail: `no ${languageCode} backend voice available` };
     }
     if (!res.ok) {
-      return { engine: 'none', ok: false, detail: `TTS unavailable (backend HTTP ${res.status})` };
+      return { engine: 'none', ok: false, detail: `TTS backend HTTP ${res.status}` };
     }
     const blob = await res.blob();
     if (!blob.size) {
-      return { engine: 'none', ok: false, detail: 'TTS unavailable (empty audio)' };
+      return { engine: 'none', ok: false, detail: 'TTS backend returned 0 bytes' };
     }
     const url = URL.createObjectURL(blob);
-    if (ttsAudio) {
-      try {
-        ttsAudio.pause();
-      } catch {
-        /* ignore */
-      }
+    if (!sharedTtsAudio) {
+      sharedTtsAudio = new Audio();
     }
-    ttsAudio = new Audio(url);
-    ttsAudio.onended = () => URL.revokeObjectURL(url);
-    await ttsAudio.play().catch(() => {
-      /* autoplay may be blocked; text is already shown */
-    });
+    sharedTtsAudio.src = url;
+    sharedTtsAudio.onended = () => URL.revokeObjectURL(url);
+    await sharedTtsAudio.play();
     return { engine: 'edge-tts', voice: `${languageCode}-IN edge-tts`, ok: true };
-  } catch {
-    return { engine: 'none', ok: false, detail: 'TTS unavailable (backend unreachable)' };
+  } catch (err) {
+    return { engine: 'none', ok: false, detail: `TTS backend unreachable (${err})` };
   }
 }
 
-// Speak `text` in the given language. Prefers a matching on-device browser voice;
-// if none exists (common for te/ta/kn/ml on Windows Chrome) it falls back to the
-// backend edge-tts MP3 so the reply is heard in the correct language — never with a
-// wrong-language voice. Returns which engine/voice was used (or why none was).
+// Speak text in the given language. Order of preference:
+// 1. Native browser voice matching languageCode (e.g. te-IN, hi-IN)
+// 2. Backend edge-tts MP3 endpoint
+// 3. Fallback browser voice (if backend TTS fails or times out) so speech is NEVER silent.
 export async function speakWithBrowser(text: string, languageCode: string): Promise<SpeakResult> {
   if (!text || !text.trim()) return { engine: 'none', ok: false, detail: 'empty text' };
   const targetLang = getRecognitionLang(languageCode);
 
+  // 1. Try native browser voice matching target language
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     const synth = window.speechSynthesis;
     const voices = await loadVoices(synth);
@@ -149,10 +155,33 @@ export async function speakWithBrowser(text: string, languageCode: string): Prom
       synth.speak(utterance);
       return { engine: 'browser', voice: matched.name, ok: true };
     }
-    // No native voice for this language -> stop any queued speech and use edge-tts
-    // rather than speaking in the wrong language.
     synth.cancel();
   }
 
-  return playBackendTts(text, languageCode);
+  // 2. Try backend edge-tts
+  const backendResult = await playBackendTts(text, languageCode);
+  if (backendResult.ok) {
+    return backendResult;
+  }
+
+  // 3. Fallback: Browser speechSynthesis with any available voice so reply is NEVER silent
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = targetLang;
+    const fallbackVoice = synth.getVoices().find((v) => v.lang.includes('IN')) || synth.getVoices()[0];
+    if (fallbackVoice) utterance.voice = fallbackVoice;
+    synth.speak(utterance);
+    console.warn(`[TTS Warning] Backend TTS failed (${backendResult.detail}). Falling back to browser voice: ${fallbackVoice?.name || 'Default'}`);
+    return {
+      engine: 'browser',
+      voice: `${fallbackVoice?.name || 'System Default'} (Fallback)`,
+      ok: true,
+      detail: `Fallback after backend failure: ${backendResult.detail}`,
+    };
+  }
+
+  console.error(`[TTS Error] All speech synthesis methods failed: ${backendResult.detail}`);
+  return backendResult;
 }
