@@ -1,17 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, Bookmark, Sliders, Trash2, Search, ArrowRight, CheckCircle2, ShieldCheck, Mail, MessageSquare, Smartphone, Clock, Sparkles } from 'lucide-react';
+import { User, Bell, Bookmark, Sliders, Trash2, Search, ArrowRight, CheckCircle2, ShieldCheck, Mail, MessageSquare, Smartphone, Clock } from 'lucide-react';
 import { getSavedTravelWatches, deleteTravelWatch, TravelWatchItem } from '../lib/travelWatchService';
 import { getSavedSearches, deleteSavedSearch, SavedSearchItem } from '../lib/savedSearchesService';
 import { useSearch } from '../context/SearchContext';
+import { useLanguage } from '../context/LanguageContext';
+import { formatPhone } from '../lib/phone';
+import TravelWatchModal from '../components/TravelWatchModal';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { setSearchRoute } = useSearch();
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<'watches' | 'saved' | 'preferences'>('watches');
   const [watches, setWatches] = useState<TravelWatchItem[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearchItem[]>([]);
+  const [editingWatch, setEditingWatch] = useState<TravelWatchItem | null>(null);
 
   useEffect(() => {
     setWatches(getSavedTravelWatches());
@@ -155,6 +160,46 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  {/* ISSUE 3: the delivery channel AND the exact destination are always
+                      on the card, so an alert that cannot reach you is impossible to
+                      miss. Tapping Edit reopens the modal with the same validation. */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px]">
+                    <p className="font-semibold text-slate-500 mb-1.5">{t('alertDeliverTo')}</p>
+                    <div className="flex flex-col gap-1">
+                      {w.channels.email && (
+                        <span className="flex items-center gap-1.5 text-blue-700">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium">{t('alertEmail')}:</span>
+                          <span className="font-mono truncate">{w.contacts?.email || '—'}</span>
+                        </span>
+                      )}
+                      {w.channels.whatsapp && (
+                        <span className="flex items-center gap-1.5 text-emerald-700">
+                          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium">{t('alertWhatsapp')}:</span>
+                          <span className="font-mono truncate">
+                            {w.contacts?.phone ? formatPhone(w.contacts.phone) : '—'}
+                          </span>
+                        </span>
+                      )}
+                      {w.channels.sms && (
+                        <span className="flex items-center gap-1.5 text-purple-700">
+                          <Smartphone className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium">{t('alertSms')}:</span>
+                          <span className="font-mono truncate">
+                            {w.contacts?.phone ? formatPhone(w.contacts.phone) : '—'}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setEditingWatch(w)}
+                      className="mt-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      {t('alertEdit')}
+                    </button>
+                  </div>
+
                   <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-3">
                     <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Checked: Just now</span>
                     <span className="flex items-center gap-1 font-semibold text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Escalation Active</span>
@@ -245,6 +290,22 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Editing reuses the same modal — and therefore the same delivery validation,
+          so a watch can never be edited INTO an undeliverable state (ISSUE 3). */}
+      {editingWatch && (
+        <TravelWatchModal
+          origin={editingWatch.origin}
+          destination={editingWatch.destination}
+          travelDate={editingWatch.travelDate}
+          existing={editingWatch}
+          onClose={() => {
+            setEditingWatch(null);
+            setWatches(getSavedTravelWatches());
+          }}
+          onCreated={() => setWatches(getSavedTravelWatches())}
+        />
       )}
     </div>
   );

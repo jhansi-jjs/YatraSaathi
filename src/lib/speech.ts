@@ -1,29 +1,44 @@
 // Shared speech helpers: BCP-47 mapping for Web Speech recognition/synthesis,
 // TTS audio priming, and robust fallback handling across browser & backend TTS.
 
+import { SUPPORTED_LANGUAGES, getLocale, supportsBrowserStt, getLanguage } from './languages';
+
 export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '/api'
     ? import.meta.env.VITE_BACKEND_URL
     : 'https://yatrasaathi.onrender.com';
 
-// Every supported UI language mapped to its Indian BCP-47 locale tag.
-export const LANG_BCP47: Record<string, string> = {
-  en: 'en-IN',
-  te: 'te-IN',
-  hi: 'hi-IN',
-  ta: 'ta-IN',
-  kn: 'kn-IN',
-  ml: 'ml-IN',
-  mr: 'mr-IN',
-  gu: 'gu-IN',
-  bn: 'bn-IN',
-  ur: 'ur-IN',
-  pa: 'pa-IN',
-  or: 'or-IN',
-};
+// BCP-47 locale tags come from the single shared language list, so the recognition
+// locale, the synthesis locale and the language picker can never disagree (ISSUE 0).
+export const LANG_BCP47: Record<string, string> = SUPPORTED_LANGUAGES.reduce(
+  (acc, l) => {
+    acc[l.code] = l.stt_locale;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
 
 export function getRecognitionLang(languageCode: string): string {
-  return LANG_BCP47[languageCode] || 'en-IN';
+  return getLocale(languageCode);
+}
+
+/**
+ * Locales Chrome rejected at runtime with `language-not-supported`. Chrome exposes no
+ * list of supported recognition languages, so we learn from the error and stop using
+ * browser STT for that language for the rest of the session — the audio goes to the
+ * backend Whisper model instead of being mis-transcribed as English (ISSUE 0a).
+ */
+const runtimeUnsupportedLocales = new Set<string>();
+
+export function markLocaleUnsupported(languageCode: string): void {
+  runtimeUnsupportedLocales.add(getLocale(languageCode));
+}
+
+/** False -> skip browser recognition entirely and go straight to backend STT. */
+export function canUseBrowserStt(languageCode: string): boolean {
+  if (!supportsBrowserStt(languageCode)) return false;
+  return !runtimeUnsupportedLocales.has(getLocale(languageCode));
 }
 
 // Minimal Web Speech typings
@@ -144,9 +159,13 @@ export async function speakWithBrowser(text: string, languageCode: string): Prom
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     const synth = window.speechSynthesis;
     const voices = await loadVoices(synth);
-    const matched = voices.find((v) =>
-      v.lang.toLowerCase().replace('_', '-').startsWith(languageCode.toLowerCase())
-    );
+    // Match on the language subtag only, and require a separator after it so "or"
+    // (Odia) can never match an unrelated locale.
+    const wanted = languageCode.toLowerCase();
+    const matched = voices.find((v) => {
+      const tag = v.lang.toLowerCase().replace('_', '-');
+      return tag === wanted || tag.startsWith(`${wanted}-`);
+    });
     if (matched) {
       synth.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -158,30 +177,28 @@ export async function speakWithBrowser(text: string, languageCode: string): Prom
     synth.cancel();
   }
 
-  // 2. Try backend edge-tts
-  const backendResult = await playBackendTts(text, languageCode);
-  if (backendResult.ok) {
-    return backendResult;
-  }
-
-  // 3. Fallback: Browser speechSynthesis with any available voice so reply is NEVER silent
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = targetLang;
-    const fallbackVoice = synth.getVoices().find((v) => v.lang.includes('IN')) || synth.getVoices()[0];
-    if (fallbackVoice) utterance.voice = fallbackVoice;
-    synth.speak(utterance);
-    console.warn(`[TTS Warning] Backend TTS failed (${backendResult.detail}). Falling back to browser voice: ${fallbackVoice?.name || 'Default'}`);
+  // 2. No browser voice for this language. If the backend has no edge-tts voice
+  //    either, say so immediately rather than making a pointless round-trip.
+  const lang = getLanguage(languageCode);
+  if (!lang.backend_tts) {
     return {
-      engine: 'browser',
-      voice: `${fallbackVoice?.name || 'System Default'} (Fallback)`,
-      ok: true,
-      detail: `Fallback after backend failure: ${backendResult.detail}`,
+      engine: 'none',
+      ok: false,
+      detail: `no ${lang.name} voice on this device or on the server (text only)`,
     };
   }
 
-  console.error(`[TTS Error] All speech synthesis methods failed: ${backendResult.detail}`);
+  // 3. Backend edge-tts MP3 in the correct language.
+  const backendResult = await playBackendTts(text, languageCode);
+  if (backendResult.ok) return backendResult;
+
+  // ISSUE 0(d): we deliberately do NOT fall back to "any available voice" here.
+  // Reading a Telugu sentence aloud with an en-US voice produces gibberish, which is
+  // worse than silence. The caller shows the reply as text plus a visible
+  // "audio unavailable in this language" note, and we log why.
+  console.warn(
+    `[TTS] No ${lang.name} voice available (${backendResult.detail}). Reply shown as text only.`
+  );
   return backendResult;
+
 }

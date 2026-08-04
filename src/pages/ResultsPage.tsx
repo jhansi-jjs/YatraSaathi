@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { BusListingWithRoute } from '../lib/types';
@@ -8,98 +8,42 @@ import FilterPanel, { FilterState } from '../components/FilterPanel';
 import PricePredictionCard from '../components/PricePredictionCard';
 import TravelWatchModal from '../components/TravelWatchModal';
 import { rankAndScoreListings } from '../lib/recommendationEngine';
-import { SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink, Sparkles, Clock, Award, Bell } from 'lucide-react';
+import {
+  SlidersHorizontal, Bus as BusIcon, AlertCircle, GitFork, ExternalLink,
+  Sparkles, Clock, Award, Bell, Filter as FilterIcon, X,
+} from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 import { computeBreakJourneyRoutes, hasDirectBuses, BreakJourneyRoute } from '../lib/breakJourneyService';
 import { buildOtaDeepLink } from '../lib/ota';
 import { NO_DIRECT_MESSAGES, CONNECTING_CHOICE_PROMPT, CONNECTING_CHOICE_LABELS } from '../lib/agenticAiService';
 import { speakWithBrowser } from '../lib/speech';
+import {
+  generateDynamicListings,
+  applyResultFilters,
+  voiceFiltersToResultFilters,
+  describeResultFilters,
+  isFilterActive,
+  suggestRelaxation,
+  DEFAULT_RESULT_FILTERS,
+  type Relaxation,
+} from '../lib/listings';
+import { EMPTY_FILTERS } from '../lib/filterExtraction';
+import { filterAppliedMessage, filterNoResultsMessage } from '../lib/filterMessages';
 
 type SortOption = 'price_low' | 'price_high' | 'rating' | 'duration' | 'ai_score';
 
-const DEFAULT_FILTERS: FilterState = {
-  busTypes: [],
-  acStatus: [],
-  busModels: [],
-  maxPrice: null,
-  minRating: 0,
-};
-
-function generateDynamicListings(origin: string, destination: string, travelDate: string): BusListingWithRoute[] {
-  const operators = [
-    { name: 'APSRTC Super Luxury', model: 'bharatbenz', type: 'semi-sleeper', ac: 'non-ac' },
-    { name: 'VRL Travels Multi-Axle', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'IntrCity SmartBus', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'Morning Star Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'Orange Tours & Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'Zingbus Premium AC', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'SRS Travels', model: 'other', type: 'semi-sleeper', ac: 'ac' },
-    { name: 'TSRTC Garuda Plus', model: 'volvo', type: 'seater', ac: 'ac' },
-    { name: 'Kaveri Travels', model: 'volvo', type: 'sleeper', ac: 'ac' },
-    { name: 'GreenLine Travels', model: 'bharatbenz', type: 'semi-sleeper', ac: 'ac' },
-    { name: 'Nuego Green Electric', model: 'other', type: 'seater', ac: 'ac' },
-    { name: 'Jabbar Travels', model: 'volvo', type: 'sleeper', ac: 'ac' }
-  ];
-  
-  const otas = ['redBus', 'MakeMyTrip', 'AbhiBus', 'TravelYaari', 'EaseMyTrip', 'PaytmBus', 'Cleartrip', 'Goibibo', 'Ixigo'];
-  const routeId = `${origin}-${destination}`;
-  const mockListings: BusListingWithRoute[] = [];
-
-  operators.forEach((op, index) => {
-    const ota = otas[index % otas.length];
-    const busType = op.type as BusListingWithRoute['bus_type'];
-    const acStatus = op.ac as BusListingWithRoute['ac_status'];
-    const busModel = op.model as BusListingWithRoute['bus_model'];
-    const price = 420 + (index * 95) + (acStatus === 'ac' ? 180 : 0) + (busType === 'sleeper' ? 220 : 0);
-    const depHour = (6 + index * 1.5) % 24;
-    const depH = Math.floor(depHour);
-    const depM = (index % 2 === 0) ? '15' : '45';
-    const depTime = `${depH < 10 ? '0' : ''}${depH}:${depM}:00`;
-    
-    const arrHour = (depH + 7 + (index % 3)) % 24;
-    const arrTime = `${arrHour < 10 ? '0' : ''}${arrHour}:${depM}:00`;
-
-    mockListings.push({
-      id: `dyn-${index}-${routeId}`,
-      route_id: routeId,
-      operator_name: op.name,
-      bus_type: busType,
-      ac_status: acStatus,
-      bus_model: busModel,
-      seat_position: index % 2 === 0 ? 'window' : 'middle',
-      berth_level: busType === 'sleeper' ? (index % 2 === 0 ? 'lower' : 'upper') : null,
-      price: price,
-      currency: 'INR',
-      ota_source: ota,
-      rating: Number((4.1 + (index * 0.12) % 0.8).toFixed(1)),
-      deep_link_url: buildOtaDeepLink({ ota_source: ota }, origin, destination, travelDate),
-      travel_date: travelDate,
-      departure_time: depTime,
-      arrival_time: arrTime,
-      duration_mins: 420 + (index % 4) * 35,
-      available_seats: 8 + (index * 4) % 22,
-      last_updated: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      routes: {
-        id: routeId,
-        origin_city: origin,
-        destination_city: destination,
-        distance_km: 380,
-        created_at: new Date().toISOString(),
-      },
-    });
-  });
-
-  return mockListings;
-}
+// Listing generation + filtering now live in lib/listings.ts so the voice assistant
+// and the chatbot can count and filter against the SAME inventory this page renders
+// (ISSUE 1c/1d).
+const DEFAULT_FILTERS: FilterState = DEFAULT_RESULT_FILTERS;
 
 export default function ResultsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t, getCityName, currentLanguage } = useLanguage();
-  const { session, setSearchRoute } = useSearch();
-  
+  const { session, setSearchRoute, updateSession } = useSearch();
+
   const origin = searchParams.get('origin') || session.source || '';
   const destination = searchParams.get('destination') || session.destination || '';
   const date = searchParams.get('date') || session.date || new Date().toISOString().split('T')[0];
@@ -116,9 +60,25 @@ export default function ResultsPage() {
   const [selectedBreakId, setSelectedBreakId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortOption>('ai_score');
   const [showFilters, setShowFilters] = useState(false);
+
+  // ISSUE 1(b): filters spoken to the assistant land in the shared session and are
+  // mirrored into the panel state, so the visible controls always match what the
+  // assistant said it applied. Manual edits are not clobbered — this only re-syncs
+  // when the SPOKEN filters actually change.
+  const [filters, setFilters] = useState<FilterState>(() =>
+    voiceFiltersToResultFilters(session.filters || EMPTY_FILTERS)
+  );
+  const lastVoiceFilterSig = useRef<string>(JSON.stringify(session.filters || EMPTY_FILTERS));
+
+  useEffect(() => {
+    const sig = JSON.stringify(session.filters || EMPTY_FILTERS);
+    if (sig !== lastVoiceFilterSig.current) {
+      lastVoiceFilterSig.current = sig;
+      setFilters(voiceFiltersToResultFilters(session.filters || EMPTY_FILTERS, DEFAULT_FILTERS));
+    }
+  }, [session.filters]);
   const [showWatchModal, setShowWatchModal] = useState(false);
 
   useEffect(() => {
@@ -191,28 +151,27 @@ export default function ResultsPage() {
     };
   }, [origin, destination, date]);
 
+  // Announce the "no direct buses" message aloud in the user's language (BUG 4).
+  // Restored after it was dropped upstream.
+  useEffect(() => {
+    if (!loading && noDirect && origin && destination) {
+      const msg = (NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(
+        getCityName(origin),
+        getCityName(destination)
+      );
+      void speakWithBrowser(msg, currentLanguage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, noDirect, origin, destination, currentLanguage]);
+
   const scoredListings = useMemo(() => {
     return rankAndScoreListings(listings);
   }, [listings]);
 
   const filtered = useMemo(() => {
-    let result = [...scoredListings];
-
-    if (filters.busTypes.length > 0) {
-      result = result.filter((l) => filters.busTypes.includes(l.bus_type));
-    }
-    if (filters.acStatus.length > 0) {
-      result = result.filter((l) => filters.acStatus.includes(l.ac_status));
-    }
-    if (filters.busModels.length > 0) {
-      result = result.filter((l) => filters.busModels.includes(l.bus_model));
-    }
-    if (filters.maxPrice !== null) {
-      result = result.filter((l) => l.price <= filters.maxPrice!);
-    }
-    if (filters.minRating > 0) {
-      result = result.filter((l) => (l.rating ?? 0) >= filters.minRating);
-    }
+    // Single shared predicate, so a spoken filter and a hand-set filter narrow the
+    // list identically and the count the assistant quoted always matches (ISSUE 1b).
+    const result = applyResultFilters(scoredListings, filters) as typeof scoredListings;
 
     switch (sort) {
       case 'ai_score':
@@ -236,6 +195,22 @@ export default function ResultsPage() {
   }, [scoredListings, filters, sort]);
 
   const cheapestPrice = listings.length > 0 ? Math.min(...listings.map((l) => l.price)) : 0;
+
+  const filterActive = isFilterActive(filters);
+  const filterSummary = filterActive ? describeResultFilters(filters, currentLanguage) : '';
+
+  // ISSUE 1(d): a filter combination that matches nothing must SAY so and offer the
+  // nearest relaxation — never silently fall back to the unfiltered list.
+  const relaxation: Relaxation | null = useMemo(() => {
+    if (loading || !filterActive || filtered.length > 0 || listings.length === 0) return null;
+    return suggestRelaxation(listings, filters);
+  }, [loading, filterActive, filtered.length, listings, filters]);
+
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    lastVoiceFilterSig.current = JSON.stringify({ ...EMPTY_FILTERS });
+    updateSession({ filters: { ...EMPTY_FILTERS } });
+  };
 
   const handleSelectPredictionDate = (newDate: string) => {
     setSearchRoute(origin, destination, newDate);
@@ -265,7 +240,7 @@ export default function ResultsPage() {
             {getCityName(origin)} → {getCityName(destination)}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {loading ? t('processing') : `${filtered.length} ${t('busesFound')} for ${date}`}
+            {loading ? t('processing') : `${filtered.length} ${t('busesFound')} · ${date}`}
             {!loading && listings.length > 0 && cheapestPrice > 0 && (
               <span className="ml-2 font-semibold text-emerald-600">· {t('cheapestDeal')} ₹{cheapestPrice.toLocaleString('en-IN')}</span>
             )}
@@ -278,7 +253,7 @@ export default function ResultsPage() {
             className="flex items-center gap-1.5 rounded-xl border border-amber-400 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-700 hover:bg-amber-500/20 transition-all shadow-sm"
           >
             <Bell className="h-4 w-4 text-amber-600 animate-pulse" />
-            <span>🔔 Create AI Travel Watch</span>
+            <span>🔔 {t('watchAlertCta')}</span>
           </button>
 
           <button
@@ -293,7 +268,7 @@ export default function ResultsPage() {
             onChange={(e) => setSort(e.target.value as SortOption)}
             className="input-field w-auto text-xs font-bold"
           >
-            <option value="ai_score">🏆 AI Recommended First</option>
+            <option value="ai_score">🏆 {t('aiRecommended')}</option>
             <option value="price_low">{t('priceLowHigh')}</option>
             <option value="price_high">{t('priceHighLow')}</option>
             <option value="rating">{t('ratingHighLow')}</option>
@@ -301,6 +276,53 @@ export default function ResultsPage() {
           </select>
         </div>
       </div>
+
+      {/* Active filter summary — mirrors exactly what the assistant confirmed aloud. */}
+      {!loading && filterActive && filtered.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900">
+          <FilterIcon className="h-4 w-4 shrink-0 text-blue-600" />
+          <span className="font-semibold">{filterAppliedMessage(currentLanguage, filterSummary, filtered.length)}</span>
+          <button
+            onClick={clearFilters}
+            className="ml-auto flex items-center gap-1 rounded-lg border border-blue-300 bg-white px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+          >
+            <X className="h-3 w-3" /> {t('resetFilters')}
+          </button>
+        </div>
+      )}
+
+      {/* Zero-result relaxation offer, in the user's language (ISSUE 1d). */}
+      {!loading && relaxation && (
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+          <span className="font-semibold">
+            {filterNoResultsMessage(
+              currentLanguage,
+              filterSummary,
+              relaxation.relaxed,
+              relaxation.count,
+              relaxation.samplePrice
+            )}
+          </span>
+          <div className="flex gap-2 sm:ml-auto">
+            <button
+              onClick={() => {
+                setFilters(relaxation.filters);
+                lastVoiceFilterSig.current = JSON.stringify(session.filters || EMPTY_FILTERS);
+              }}
+              className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-900 hover:bg-amber-400"
+            >
+              {t('showTheseInstead')}
+            </button>
+            <button
+              onClick={clearFilters}
+              className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              {t('resetFilters')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Smart Weekly Price Prediction Forecast Card */}
       {!loading && origin && destination && (
@@ -321,7 +343,7 @@ export default function ResultsPage() {
             filters={filters}
             onChange={setFilters}
             listings={listings}
-            onReset={() => setFilters(DEFAULT_FILTERS)}
+            onReset={clearFilters}
           />
         </aside>
 
@@ -333,7 +355,7 @@ export default function ResultsPage() {
                 filters={filters}
                 onChange={setFilters}
                 listings={listings}
-                onReset={() => setFilters(DEFAULT_FILTERS)}
+                onReset={clearFilters}
               />
             </div>
           </div>
@@ -370,13 +392,13 @@ export default function ResultsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h2 className="text-lg font-bold text-white">Agentic Smart Break-Journeys</h2>
+                          <h2 className="text-lg font-bold text-white">{t('noDirectTitle')}</h2>
                           <span className="badge bg-amber-400 text-slate-900 font-extrabold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Sparkles className="h-3 w-3 fill-current" /> AI Recommended
                           </span>
                         </div>
                         <p className="text-xs text-slate-300">
-                          Connecting transfer options via major hubs when direct seat availability is tight on {date}
+                          {(NO_DIRECT_MESSAGES[currentLanguage] || NO_DIRECT_MESSAGES.en)(getCityName(origin), getCityName(destination))}
                         </p>
                       </div>
                     </div>
@@ -386,6 +408,9 @@ export default function ResultsPage() {
                     {breakRoutes.map((br, index) => {
                       const leg1Url = buildOtaDeepLink(br.leg1, br.leg1.routes.origin_city, br.leg1.routes.destination_city, date);
                       const leg2Url = buildOtaDeepLink(br.leg2, br.leg2.routes.origin_city, br.leg2.routes.destination_city, date);
+                      const labels = CONNECTING_CHOICE_LABELS[currentLanguage] || CONNECTING_CHOICE_LABELS.en;
+                      const choicePrompt = CONNECTING_CHOICE_PROMPT[currentLanguage] || CONNECTING_CHOICE_PROMPT.en;
+                      const isSelected = selectedBreakId === br.id;
 
                       return (
                         <div key={br.id} className="rounded-xl bg-white/5 p-4 border border-white/10 flex flex-col justify-between gap-3 hover:border-amber-400/40 transition-all">
@@ -420,28 +445,54 @@ export default function ResultsPage() {
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center gap-3 pt-1">
                               <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-amber-400" /> Transfer Break: {br.transferWaitMins} mins at {br.transferHub}</span>
-                              <span>· Total Duration: ~17h 15m</span>
+                              <span>· Total Duration: ~{Math.floor(br.totalDurationMins / 60)}h {br.totalDurationMins % 60}m</span>
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
-                            <a
-                              href={leg1Url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
+                          {/* Ask the user what to do next, in their language (BUG 4).
+                              Restored after upstream replaced it with English-only links. */}
+                          {!isSelected ? (
+                            <button
+                              onClick={() => setSelectedBreakId(br.id)}
+                              className="w-full text-center py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 font-bold text-xs text-slate-900 flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
                             >
-                              Book Leg 1 ({br.leg1.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                            <a
-                              href={leg2Url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 text-center py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white flex items-center justify-center gap-1.5 shadow-md transition-all hover:scale-[1.02]"
-                            >
-                              Book Leg 2 ({br.leg2.ota_source}) <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          </div>
+                              {labels.select}
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-[11px] text-amber-200 font-medium">{choicePrompt}</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                <a
+                                  href={leg1Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-center py-2 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.leg1} <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <a
+                                  href={leg2Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-center py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.leg2} <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <button
+                                  onClick={() => {
+                                    window.open(leg1Url, '_blank', 'noopener,noreferrer');
+                                    window.open(leg2Url, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="text-center py-2 rounded-xl bg-slate-700 hover:bg-slate-600 font-bold text-[11px] text-white flex items-center justify-center gap-1 shadow-md transition-all hover:scale-[1.02]"
+                                >
+                                  {labels.both}
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-slate-500">
+                                Leg 1 via {br.leg1.ota_source} · Leg 2 via {br.leg2.ota_source}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -460,7 +511,7 @@ export default function ResultsPage() {
           destination={destination}
           travelDate={date}
           onClose={() => setShowWatchModal(false)}
-          onCreated={() => alert('AI Travel Watch created! View details in your User Dashboard.')}
+          onCreated={() => setShowWatchModal(false)}
         />
       )}
     </div>

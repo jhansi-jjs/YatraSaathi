@@ -12,7 +12,13 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import AdminPage from './pages/AdminPage';
 import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
 import ChatbotWidget from './components/ChatbotWidget';
+import { logI18nAuditOnce } from './lib/i18nAudit';
+
+// ISSUE 0(e): report any language missing a translation key or a voice mapping once
+// at startup, so gaps are visible in the console during QA instead of silent.
+logI18nAuditOnce();
 
 function AppContent() {
   return (
@@ -26,6 +32,7 @@ function AppContent() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route
             path="/admin"
             element={

@@ -41,16 +41,25 @@ LANGUAGES = {
 }
 
 
+# The 12 languages the app actually supports end to end (UI translations + STT + NLU).
+# MUST stay in step with SUPPORTED_LANGUAGES in src/lib/languages.ts — the frontend no
+# longer builds its language picker from this endpoint (that is exactly how the two
+# sets drifted apart), but /languages should still not advertise languages the app
+# cannot handle.
+SUPPORTED_CODES_FRONTEND = ["en", "te", "hi", "ta", "kn", "ml", "mr", "gu", "bn", "ur", "pa", "or"]
+
+
 def get_language_list() -> list[dict]:
-    """For the frontend language picker: code, name, native_name, voice_available."""
+    """For diagnostics and parity checks: code, name, native_name, voice_available."""
     return [
         {
             "code": code,
-            "name": info["name"],
-            "native_name": info["native_name"],
-            "voice_available": info["tts_voice"] is not None,
+            "name": LANGUAGES[code]["name"],
+            "native_name": LANGUAGES[code]["native_name"],
+            "voice_available": LANGUAGES[code]["tts_voice"] is not None,
         }
-        for code, info in LANGUAGES.items()
+        for code in SUPPORTED_CODES_FRONTEND
+        if code in LANGUAGES
     ]
 
 

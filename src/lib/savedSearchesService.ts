@@ -15,7 +15,9 @@ export function getSavedSearches(): SavedSearchItem[] {
   try {
     const raw = localStorage.getItem(SAVED_SEARCHES_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch {
+    /* localStorage unavailable (private mode) */
+  }
   
   // Default sample saved searches for immediate quick access
   return [
@@ -51,7 +53,9 @@ export function saveSearch(name: string, origin: string, destination: string, pr
   list.unshift(newItem);
   try {
     localStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(list));
-  } catch {}
+  } catch {
+    /* localStorage unavailable (private mode) */
+  }
   return newItem;
 }
 
@@ -60,5 +64,7 @@ export function deleteSavedSearch(id: string): void {
   const filtered = list.filter((s) => s.id !== id);
   try {
     localStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(filtered));
-  } catch {}
+  } catch {
+    /* localStorage unavailable (private mode) */
+  }
 }

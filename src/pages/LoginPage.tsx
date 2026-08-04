@@ -1,12 +1,15 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bus, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Bus, AtSign, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  // ISSUE 4: login accepts EITHER identifier — email address or mobile number.
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,10 +18,16 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError } = await signIn(email, password);
+    const { error: signInError } = await signIn(identifier, password);
     setLoading(false);
     if (signInError) {
-      setError('No account found. Please create a new account.');
+      // Surface the real reason when it is actionable (bad phone format), otherwise
+      // fall back to the generic "no account" hint.
+      setError(
+        signInError.startsWith('Enter a valid mobile number')
+          ? signInError
+          : 'No account found. Please create a new account.'
+      );
     } else {
       navigate('/search');
     }
@@ -49,15 +58,16 @@ export default function LoginPage() {
           )}
 
           <div className="mb-4">
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700">Email Address</label>
+            <label className="mb-1.5 block text-xs font-semibold text-slate-700">{t('loginIdentifier')}</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                autoComplete="username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 className="input-field pl-10"
-                placeholder="you@example.com"
+                placeholder="you@example.com / +91 98765 43210"
                 required
               />
             </div>

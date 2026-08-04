@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { CITIES } from '../lib/cityData';
+import { EMPTY_FILTERS, type VoiceFilters } from '../lib/filterExtraction';
 
 export interface SearchSessionState {
   source: string | null;
@@ -11,6 +13,11 @@ export interface SearchSessionState {
   language: string;
   selectedOta: string | null;
   conversationHistory: { role: 'user' | 'assistant'; text: string; timestamp: string }[];
+  /**
+   * Filters spoken to the assistant. Persisted with the session so the results page
+   * can apply them and so follow-up utterances merge instead of resetting (ISSUE 1).
+   */
+  filters: VoiceFilters;
 }
 
 interface SearchContextType {
@@ -24,31 +31,6 @@ interface SearchContextType {
   cities: string[];
 }
 
-const DEFAULT_CITIES = [
-  'Visakhapatnam',
-  'Hyderabad',
-  'Vijayawada',
-  'Chennai',
-  'Bengaluru',
-  'Tirupati',
-  'Guntur',
-  'Rajahmundry',
-  'Kakinada',
-  'Nellore',
-  'Kurnool',
-  'Anantapur',
-  'Warangal',
-  'Karimnagar',
-  'Mumbai',
-  'Pune',
-  'Delhi',
-  'Kolkata',
-  'Kochi',
-  'Coimbatore',
-  'Madurai',
-  'Mysuru',
-];
-
 const INITIAL_STATE: SearchSessionState = {
   source: null,
   destination: null,
@@ -60,6 +42,7 @@ const INITIAL_STATE: SearchSessionState = {
   language: 'en',
   selectedOta: null,
   conversationHistory: [],
+  filters: { ...EMPTY_FILTERS },
 };
 
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
@@ -68,13 +51,21 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [session, setSession] = useState<SearchSessionState>(() => {
     try {
       const saved = localStorage.getItem('yatra_saathi_search_session');
-      return saved ? JSON.parse(saved) : INITIAL_STATE;
+      if (!saved) return INITIAL_STATE;
+      // Merge over INITIAL_STATE so a session persisted before `filters` existed
+      // does not crash the results page with an undefined filter object.
+      const parsed = JSON.parse(saved) as Partial<SearchSessionState>;
+      return {
+        ...INITIAL_STATE,
+        ...parsed,
+        filters: { ...EMPTY_FILTERS, ...(parsed.filters || {}) },
+      };
     } catch {
       return INITIAL_STATE;
     }
   });
 
-  const [cities] = useState<string[]>(DEFAULT_CITIES);
+  const [cities] = useState<string[]>(CITIES);
 
   useEffect(() => {
     try {

@@ -1,6 +1,9 @@
 import { useState, FormEvent } from 'react';
 import { X, Mail, Phone, Lock, Sparkles, User, Chrome, AlertCircle, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import PhoneField from './PhoneField';
+import { DEFAULT_COUNTRY, validatePhone } from '../lib/phone';
+import { useAuth } from '../context/AuthContext';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -10,15 +13,20 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAuthSuccess }: AuthModalProps) {
+  const { signIn } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup' | 'phone'>(initialMode);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [dial, setDial] = useState(DEFAULT_COUNTRY.dial);
+  const [national, setNational] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [, setSuccessMessage] = useState('');
+
+  const phoneCheck = validatePhone(dial, national);
 
   if (!isOpen) return null;
 
@@ -29,25 +37,22 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
     setSuccessMessage('');
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // ISSUE 4: `email` here is really an identifier — signIn accepts an email
+      // address OR a mobile number and routes to the right Supabase call.
+      const { error } = await signIn(email, password);
 
       if (error) {
-        if (error.message.includes('Invalid login credentials') || error.message.includes('not found')) {
+        if (error.includes('Invalid login credentials') || error.includes('not found')) {
           setErrorMessage('No account found. Please create a new account.');
         } else {
-          setErrorMessage(error.message);
+          setErrorMessage(error);
         }
         setLoading(false);
         return;
       }
 
-      if (data.user) {
-        onAuthSuccess();
-        onClose();
-      }
+      onAuthSuccess();
+      onClose();
     } catch {
       setErrorMessage('No account found. Please create a new account.');
     } finally {
@@ -74,7 +79,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
         options: {
           data: {
             full_name: fullName,
-            phone_number: phone,
+            phone: phoneCheck.e164,
+            phone_number: phoneCheck.e164,
           },
         },
       });
@@ -204,15 +210,17 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
         {mode === 'login' && (
           <form onSubmit={handleLogin} className="flex flex-col gap-3.5">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">Email Address</label>
+              {/* ISSUE 4: accepts EITHER identifier — email address or mobile number. */}
+              <label className="mb-1 block text-xs font-medium text-slate-300">Email or Mobile Number</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <input
-                  type="email"
+                  type="text"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  placeholder="name@example.com / +91 98765 43210"
                   className="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500"
                 />
               </div>
@@ -301,23 +309,22 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onAu
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">Phone Number (Optional)</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
+            {/* ISSUE 4: mobile is REQUIRED at signup (with country code + validation)
+                so WhatsApp/SMS price alerts have a destination from day one. */}
+            <PhoneField
+              dark
+              dial={dial}
+              national={national}
+              onDialChange={setDial}
+              onNationalChange={setNational}
+              label="Mobile Number"
+              required
+              error={national && !phoneCheck.valid ? 'Enter a valid mobile number with country code.' : null}
+            />
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !phoneCheck.valid}
               className="mt-2 w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 font-bold text-sm text-white shadow-lg hover:scale-[1.01] transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? 'Creating Account...' : 'Create Free Account'} <ArrowRight className="h-4 w-4" />

@@ -105,22 +105,22 @@ CITY_ALIASES = {
 
     # Kolkata
     "kolkata": "Kolkata", "calcutta": "Kolkata", "కోల్‌కతా": "Kolkata", "కలకత్తా": "Kolkata",
-    "कोलकाता": "Kolkata", "कलकत्ता": "Kolkata", "கொல்கத்தா": "Kolkata", "<ctrl42>କତ୍ତା": "Kolkata",
+    "कोलकाता": "Kolkata", "कलकत्ता": "Kolkata", "கொல்கத்தா": "Kolkata", "କୋଲକାତା": "Kolkata",
     "കൊൽക്കത്ത": "Kolkata", "કોલકાતા": "Kolkata",
 
     # Kochi
     "kochi": "Kochi", "cochin": "Kochi", "కొచ్చి": "Kochi", "కోచి": "Kochi",
-    "कोच्चि": "Kochi", "कोचीन": "Kochi", "கொச்சி": "Kochi", "<ctrl42>చ్చి": "Kochi",
+    "कोच्चि": "Kochi", "कोचीन": "Kochi", "கொச்சி": "Kochi", "కొచ్చి": "Kochi",
     "കൊച്ചി": "Kochi", "કોચી": "Kochi",
 
     # Coimbatore
     "coimbatore": "Coimbatore", "కోయంబత్తూర్": "Coimbatore", "कोयंबटूर": "Coimbatore",
-    "கோயம்புத்தூர்": "Coimbatore", "<ctrl42>ಮತ್ತೂರು": "Coimbatore", "കോയമ്പത്തൂർ": "Coimbatore",
+    "கோயம்புத்தூர்": "Coimbatore", "ಕೊಯಮತ್ತೂರು": "Coimbatore", "കോയമ്പത്തൂർ": "Coimbatore",
     "કોઈમ્બતૂર": "Coimbatore",
 
     # Madurai
     "madurai": "Madurai", "మదురై": "Madurai", "मदुराइ": "Madurai", "मदुरै": "Madurai",
-    "மதுரை": "Madurai", "<ctrl42>ಧುರೈ": "Madurai", "മധുര": "Madurai", "મદુરાઈ": "Madurai",
+    "மதுரை": "Madurai", "ಮಧುರೈ": "Madurai", "മധുര": "Madurai", "મદુરાઈ": "Madurai",
 
     # Mysuru
     "mysuru": "Mysuru", "mysore": "Mysuru", "మైసూరు": "Mysuru", "మైసూర్": "Mysuru",

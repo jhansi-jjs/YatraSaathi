@@ -4,30 +4,9 @@ import { MapPin, Navigation, Calendar, Search, ArrowLeftRight } from 'lucide-rea
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 
-export const CITIES = [
-  'Visakhapatnam',
-  'Hyderabad',
-  'Vijayawada',
-  'Chennai',
-  'Bengaluru',
-  'Tirupati',
-  'Guntur',
-  'Rajahmundry',
-  'Kakinada',
-  'Nellore',
-  'Kurnool',
-  'Anantapur',
-  'Warangal',
-  'Karimnagar',
-  'Mumbai',
-  'Pune',
-  'Delhi',
-  'Kolkata',
-  'Kochi',
-  'Coimbatore',
-  'Madurai',
-  'Mysuru',
-];
+// Single city dataset lives in lib/cityData so the React-free NLU layer shares it.
+export { CITIES } from '../lib/cityData';
+import { CITIES } from '../lib/cityData';
 
 interface SearchFormProps {
   compact?: boolean;

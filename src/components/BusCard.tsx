@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Star, Clock, Users, Snowflake, Fan, ExternalLink, Sparkles, Award } from 'lucide-react';
+import { Star, Clock, Users, Snowflake, Fan, ExternalLink, Award, Armchair } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import type { ScoredBusListing } from '../lib/recommendationEngine';
 import { getSessionId } from '../lib/session';
@@ -9,6 +9,7 @@ import { useSearch } from '../context/SearchContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
 import { buildOtaDeepLink, OTA_NAMES, otaSupportsPrefill, getOtaToastMessage } from '../lib/ota';
+import BookingModal from './BookingModal';
 
 interface BusCardProps {
   listing: BusListingWithRoute | ScoredBusListing;
@@ -31,8 +32,9 @@ export default function BusCard({ listing, index }: BusCardProps) {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { session } = useSearch();
-  const { currentLanguage } = useLanguage();
+  const { currentLanguage, t } = useLanguage();
   const [toast, setToast] = useState<string | null>(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   const scoredListing = listing as ScoredBusListing;
   const isAiRecommended = scoredListing.isAiRecommended;
@@ -168,14 +170,27 @@ export default function BusCard({ listing, index }: BusCardProps) {
             </p>
           </div>
 
-          <button
-            onClick={handleDirectOtaRedirect}
-            className="btn-primary flex items-center gap-2 bg-[#0066ff] hover:bg-blue-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-md transition-all hover:scale-105"
-          >
-            Book Now <ExternalLink className="h-4 w-4" />
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleDirectOtaRedirect}
+              className="btn-primary flex items-center justify-center gap-2 bg-[#0066ff] hover:bg-blue-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-md transition-all hover:scale-105"
+            >
+              {t('bookNow')} <ExternalLink className="h-4 w-4" />
+            </button>
+
+            {/* ISSUE 5: BookingModal (seat map -> passenger details -> mock payment ->
+                PNR) existed but was never reachable from anywhere in the UI. */}
+            <button
+              onClick={() => setBookingOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <Armchair className="h-4 w-4 text-[#0066ff]" /> {t('selectSeatsCta')}
+            </button>
+          </div>
         </div>
       </div>
+
+      {bookingOpen && <BookingModal listing={listing} onClose={() => setBookingOpen(false)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-2xl border border-white/10 max-w-[92vw] text-center">

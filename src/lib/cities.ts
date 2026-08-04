@@ -1,107 +1,153 @@
-// Standalone city data used by the voice pipeline. This module imports NOTHING from
-// components so it can be shared by both VoiceSearchBar.tsx and agenticAiService.ts
-// without creating a circular import (previously CITY_ALIASES lived in VoiceSearchBar,
-// which imports agenticAiService, which imports CITY_ALIASES -> module-init TDZ crash).
+// City alias table used by the voice/chat NLU. Imports nothing from components so it
+// can be shared by VoiceSearchBar.tsx and agenticAiService.ts without a circular
+// import (previously CITY_ALIASES lived in VoiceSearchBar, which imports
+// agenticAiService, which imports CITY_ALIASES -> module-init TDZ crash).
+//
+// ISSUE 2: aliases are now built from three layers instead of one hand-written list,
+// so code-mixed and non-Telugu native input resolves too:
+//   1. every endonym in CITY_TRANSLATIONS (all 12 scripts x 22 cities, automatic),
+//   2. the canonical English name and its lowercase slug,
+//   3. hand-written romanized spellings, short forms and common STT misspellings.
 
-export const CITY_ALIASES: Record<string, string> = {
+import { CITIES, CITY_TRANSLATIONS } from './cityData';
+
+// Layer 3 — romanized spellings, airport-style short codes and the misspellings
+// speech-to-text engines actually produce for these cities.
+const ROMANIZED_ALIASES: Record<string, string> = {
   // Visakhapatnam
-  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', visakha: 'Visakhapatnam', visag: 'Visakhapatnam', vizakhapatnam: 'Visakhapatnam', vishakhapatnam: 'Visakhapatnam', vishakapatnam: 'Visakhapatnam',
-  వైజాగ్: 'Visakhapatnam', విశాఖపట్నం: 'Visakhapatnam', विशाखापट्टनम: 'Visakhapatnam',
-  விசாகப்பட்டினம்: 'Visakhapatnam', ವಿಶಾಖಪಟ್ಟಣ: 'Visakhapatnam', വിശാഖപട്ടണം: 'Visakhapatnam',
-  વિશાખાપટ્ટનમ: 'Visakhapatnam', విశాఖ: 'Visakhapatnam',
+  visakhapatnam: 'Visakhapatnam', vizag: 'Visakhapatnam', vizhag: 'Visakhapatnam',
+  visakha: 'Visakhapatnam', visag: 'Visakhapatnam', vizakhapatnam: 'Visakhapatnam',
+  vishakhapatnam: 'Visakhapatnam', vishakapatnam: 'Visakhapatnam', vskp: 'Visakhapatnam',
+  waltair: 'Visakhapatnam',
 
   // Hyderabad
-  hyderabad: 'Hyderabad', hyd: 'Hyderabad', హైదరాబాద్: 'Hyderabad', హైదరాబాదు: 'Hyderabad',
-  हैदराबाद: 'Hyderabad', ஹைதராபாத்: 'Hyderabad', ಹೈದರಾಬಾದ್: 'Hyderabad', ഹൈദരാബാദ്: 'Hyderabad',
-  હૈદરાબાદ: 'Hyderabad', হায়দ্রাবাদ: 'Hyderabad', حیدرآباد: 'Hyderabad',
+  hyderabad: 'Hyderabad', hyd: 'Hyderabad', hydrabad: 'Hyderabad', haiderabad: 'Hyderabad',
+  bhagyanagar: 'Hyderabad', secunderabad: 'Hyderabad',
 
   // Vijayawada
-  vijayawada: 'Vijayawada', vijawada: 'Vijayawada', vja: 'Vijayawada', bezawada: 'Vijayawada', vijaywada: 'Vijayawada',
-  విజయవాడ: 'Vijayawada', విజవాడ: 'Vijayawada', బెజవాడ: 'Vijayawada', विजयवाड़ा: 'Vijayawada', विजवाडा: 'Vijayawada', விஜயவாடா: 'Vijayawada',
-  ವಿಜಯವಾಡ: 'Vijayawada', വിജയവാഡ: 'Vijayawada', વિજયવાડા: 'Vijayawada',
+  vijayawada: 'Vijayawada', vijawada: 'Vijayawada', vijaywada: 'Vijayawada',
+  vja: 'Vijayawada', bza: 'Vijayawada', bezawada: 'Vijayawada',
 
   // Chennai
-  chennai: 'Chennai', madras: 'Chennai', చెన్నై: 'Chennai', మద్రాస్: 'Chennai',
-  चेन्नई: 'Chennai', मद्रास: 'Chennai', சென்னை: 'Chennai', மதராஸ்: 'Chennai',
-  ಚೆನ್ನೈ: 'Chennai', ചെന്നൈ: 'Chennai', ચેન્નઈ: 'Chennai',
+  chennai: 'Chennai', chennaii: 'Chennai', madras: 'Chennai', maas: 'Chennai',
 
   // Bengaluru
-  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', banglore: 'Bengaluru', blr: 'Bengaluru',
-  బెంగళూరు: 'Bengaluru', బెంగుళూరు: 'Bengaluru', बेंगलुरु: 'Bengaluru', बैंगलोर: 'Bengaluru',
-  பெங்களூரு: 'Bengaluru', ಬೆಂಗಳೂರು: 'Bengaluru', ബംഗളൂരു: 'Bengaluru', બેંગલુરુ: 'Bengaluru',
+  bengaluru: 'Bengaluru', bangalore: 'Bengaluru', banglore: 'Bengaluru',
+  bengalore: 'Bengaluru', banglur: 'Bengaluru', bengluru: 'Bengaluru', blr: 'Bengaluru',
 
   // Tirupati
-  tirupati: 'Tirupati', తిరుపతి: 'Tirupati', तिरुपति: 'Tirupati', திருப்பதி: 'Tirupati',
-  ತಿರುಪತಿ: 'Tirupati', തിരുപ്പതി: 'Tirupati', તિરુપતિ: 'Tirupati',
+  tirupati: 'Tirupati', tirupathi: 'Tirupati', thirupathi: 'Tirupati', tirumala: 'Tirupati',
 
   // Guntur
-  guntur: 'Guntur', గుంటూరు: 'Guntur', गुंटूर: 'Guntur', గుండూర్: 'Guntur',
-  ഗുണ്ടൂർ: 'Guntur', ગુંટૂર: 'Guntur',
+  guntur: 'Guntur', gunturu: 'Guntur', gunter: 'Guntur',
 
   // Rajahmundry
-  rajahmundry: 'Rajahmundry', rajahmundri: 'Rajahmundry', రాజమండ్రి: 'Rajahmundry',
-  राजमुंदरी: 'Rajahmundry', ராஜமுந்திரி: 'Rajahmundry', ರಾಜಮಂಡ್ರಿ: 'Rajahmundry',
-  രാജമണ്ഡ്രി: 'Rajahmundry', રાજામુંડરી: 'Rajahmundry',
+  rajahmundry: 'Rajahmundry', rajahmundri: 'Rajahmundry', rajamundry: 'Rajahmundry',
+  rajamahendravaram: 'Rajahmundry', rjy: 'Rajahmundry',
 
   // Kakinada
-  kakinada: 'Kakinada', కాకినాడ: 'Kakinada', काकीनाडा: 'Kakinada', காక్కిநாடா: 'Kakinada',
-  ಕಾಕಿನಾಡ: 'Kakinada', കാക്കിനട: 'Kakinada', કાકીનાડા: 'Kakinada',
+  kakinada: 'Kakinada', kakinadaa: 'Kakinada', cocanada: 'Kakinada',
 
   // Nellore
-  nellore: 'Nellore', నెల్లూరు: 'Nellore', नेल्लोर: 'Nellore', நெல்லூர்: 'Nellore',
-  ನೆಲ್ಲೂರು: 'Nellore', നെല്ലൂർ: 'Nellore', નેલ્લોર: 'Nellore',
+  nellore: 'Nellore', nelluru: 'Nellore',
 
   // Kurnool
-  kurnool: 'Kurnool', కర్నూలు: 'Kurnool', कुर्नूल: 'Kurnool', கர்நூல்: 'Kurnool',
-  ಕರ್ನೂಲು: 'Kurnool', കർണൂൽ: 'Kurnool', કુર્નૂલ: 'Kurnool',
+  kurnool: 'Kurnool', karnool: 'Kurnool', kurnul: 'Kurnool',
 
   // Anantapur
-  anantapur: 'Anantapur', అనంతపురం: 'Anantapur', अनंतपुर: 'Anantapur', அனந்தபூர்: 'Anantapur',
-  ಅನಂತಪುರ: 'Anantapur', അനന്തപൂർ: 'Anantapur', અનંતપુર: 'Anantapur',
+  anantapur: 'Anantapur', ananthapur: 'Anantapur', ananthapuram: 'Anantapur', atp: 'Anantapur',
 
   // Warangal
-  warangal: 'Warangal', వరంగల్: 'Warangal', वरंगल: 'Warangal', வரங்கல்: 'Warangal',
-  ವರಂಗಲ್: 'Warangal', വരംഗൽ: 'Warangal', વરંગલ: 'Warangal',
+  warangal: 'Warangal', varangal: 'Warangal', orugallu: 'Warangal',
 
   // Karimnagar
-  karimnagar: 'Karimnagar', కరీంనగర్: 'Karimnagar', करीमनगर: 'Karimnagar',
-  కరీంనగర: 'Karimnagar', કરીમનગર: 'Karimnagar',
+  karimnagar: 'Karimnagar', kareemnagar: 'Karimnagar',
 
   // Mumbai
-  mumbai: 'Mumbai', bombay: 'Mumbai', ముంబై: 'Mumbai', బొంబాయి: 'Mumbai',
-  मुंबई: 'Mumbai', बंबई: 'Mumbai', மும்பை: 'Mumbai', ಮುಂಬೈ: 'Mumbai',
-  മുംബൈ: 'Mumbai', മુંબઈ: 'Mumbai',
+  mumbai: 'Mumbai', bombay: 'Mumbai', bom: 'Mumbai',
 
   // Pune
-  pune: 'Pune', పుణే: 'Pune', పూనే: 'Pune', पुणे: 'Pune',
-  புனே: 'Pune', పుಣೆ: 'Pune', పునె: 'Pune', పుણે: 'Pune',
+  pune: 'Pune', poona: 'Pune',
 
   // Delhi
-  delhi: 'Delhi', dilli: 'Delhi', ఢిల్లీ: 'Delhi', ఢిల్లి: 'Delhi',
-  दिल्ली: 'Delhi', दिल्लि: 'Delhi', டெல்லி: 'Delhi', దెహలి: 'Delhi',
-  ഡൽഹി: 'Delhi', દિલ્હી: 'Delhi',
+  delhi: 'Delhi', dilli: 'Delhi', newdelhi: 'Delhi', del: 'Delhi',
 
   // Kolkata
-  kolkata: 'Kolkata', calcutta: 'Kolkata', కోల్‌కతా: 'Kolkata', కలకత్తా: 'Kolkata',
-  कोलकाता: 'Kolkata', कलकत्ता: 'Kolkata', கொல்கத்தா: 'Kolkata',
-  കൊൽക്കത്ത: 'Kolkata', કોલકાતા: 'Kolkata',
+  kolkata: 'Kolkata', calcutta: 'Kolkata', ccu: 'Kolkata',
 
   // Kochi
-  kochi: 'Kochi', cochin: 'Kochi', కొచ్చి: 'Kochi', కోచి: 'Kochi',
-  कोच्चि: 'Kochi', कोचीन: 'Kochi', கொச்சி: 'Kochi',
-  കൊച്ചി: 'Kochi', കോചീ: 'Kochi',
+  kochi: 'Kochi', cochin: 'Kochi', kochin: 'Kochi', ernakulam: 'Kochi',
 
   // Coimbatore
-  coimbatore: 'Coimbatore', కోయంబత్తూర్: 'Coimbatore', कोयंबटूर: 'Coimbatore',
-  கோயம்புத்தூர்: 'Coimbatore', ಕೋಯಮತ್ತೂರು: 'Coimbatore', കോയമ്പത്തൂർ: 'Coimbatore',
-  કોઈમ્બતૂર: 'Coimbatore',
+  coimbatore: 'Coimbatore', kovai: 'Coimbatore', cbe: 'Coimbatore',
 
   // Madurai
-  madurai: 'Madurai', మదురై: 'Madurai', मदेरै: 'Madurai', मदुरै: 'Madurai',
-  மதுரை: 'Madurai', ಮಧುರೈ: 'Madurai', മധുര: 'Madurai', મદુરાઈ: 'Madurai',
+  madurai: 'Madurai', madura: 'Madurai',
 
   // Mysuru
-  mysuru: 'Mysuru', mysore: 'Mysuru', మైసూరు: 'Mysuru', మైసూర్: 'Mysuru',
-  मैसूरु: 'Mysuru', मैसूर: 'Mysuru', மைசூரு: 'Mysuru', ಮೈಸೂರು: 'Mysuru',
-  മൈസൂരു: 'Mysuru', മૈસુરુ: 'Mysuru',
+  mysuru: 'Mysuru', mysore: 'Mysuru',
 };
+
+// Layer 4 — colloquial names in native scripts that are NOT the formal endonym in
+// CITY_TRANSLATIONS ("వైజాగ్" for Visakhapatnam, "बैंगलोर" for Bengaluru, "బెజవాడ" for
+// Vijayawada). People say these far more often than the formal name.
+const NATIVE_COLLOQUIAL_ALIASES: Record<string, string> = {
+  // Visakhapatnam
+  వైజాగ్: 'Visakhapatnam', విశాఖ: 'Visakhapatnam', వైజాగ: 'Visakhapatnam',
+  // Hyderabad
+  హైదరాబాదు: 'Hyderabad', భాగ్యనగరం: 'Hyderabad', सिकंदराबाद: 'Hyderabad',
+  // Vijayawada
+  బెజవాడ: 'Vijayawada', విజవాడ: 'Vijayawada', बेजवाड़ा: 'Vijayawada',
+  // Chennai
+  మద్రాస్: 'Chennai', मद्रास: 'Chennai', மதராஸ்: 'Chennai',
+  // Bengaluru
+  బెంగుళూరు: 'Bengaluru', बैंगलोर: 'Bengaluru', ಬೆಂಗಳೂರ: 'Bengaluru',
+  // Mumbai
+  బొంబాయి: 'Mumbai', बंबई: 'Mumbai',
+  // Kolkata
+  కలకత్తా: 'Kolkata', कलकत्ता: 'Kolkata',
+  // Kochi
+  కోచి: 'Kochi', कोचीन: 'Kochi',
+  // Delhi
+  ఢిల్లి: 'Delhi', 'नई दिल्ली': 'Delhi',
+  // Mysuru
+  మైసూర్: 'Mysuru', मैसूर: 'Mysuru',
+  // Pune
+  పూనే: 'Pune',
+  // Tirupati
+  తిరుమల: 'Tirupati',
+  // Rajahmundry
+  రాజమహేంద్రవరం: 'Rajahmundry',
+  // Warangal
+  ఓరుగల్లు: 'Warangal',
+};
+
+function buildAliases(): Record<string, string> {
+  const table: Record<string, string> = {};
+
+  // Layer 1 — every endonym we already ship for the UI becomes a voice alias.
+  for (const [canonical, byLang] of Object.entries(CITY_TRANSLATIONS)) {
+    for (const native of Object.values(byLang)) {
+      if (native) table[native.normalize('NFC').toLowerCase()] = canonical;
+    }
+  }
+
+  // Layer 2 — canonical English names.
+  for (const city of CITIES) {
+    table[city.toLowerCase()] = city;
+  }
+
+  // Layer 3 — colloquial native names that are not the formal endonym.
+  for (const [alias, canonical] of Object.entries(NATIVE_COLLOQUIAL_ALIASES)) {
+    table[alias.normalize('NFC').toLowerCase()] = canonical;
+  }
+
+  // Layer 4 — romanized/short/misspelled forms (highest priority, written last).
+  for (const [alias, canonical] of Object.entries(ROMANIZED_ALIASES)) {
+    table[alias] = canonical;
+  }
+
+  return table;
+}
+
+export const CITY_ALIASES: Record<string, string> = buildAliases();

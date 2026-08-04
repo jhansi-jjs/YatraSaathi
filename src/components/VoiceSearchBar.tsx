@@ -1,15 +1,44 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, Square, Globe, Loader2, Sparkles, Volume2, AlertCircle, Bug, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { CITIES } from './SearchForm';
-import { useLanguage, SUPPORTED_LANGUAGES, LanguageOption, CITY_TRANSLATIONS } from '../context/LanguageContext';
+import { useLanguage, SUPPORTED_LANGUAGES, CITY_TRANSLATIONS } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
-import { extractCitiesFromInput, extractContinuousPreferences, detectLanguageFromText, getResponseTemplate } from '../lib/agenticAiService';
+import {
+  extractCitiesFromInput,
+  extractContinuousPreferences,
+  detectLanguageFromText,
+  getResponseTemplate,
+  resolveRoute,
+} from '../lib/agenticAiService';
+import { extractFilters, mergeFilters, describeFilters, hasAnyFilter, EMPTY_FILTERS } from '../lib/filterExtraction';
+import {
+  generateDynamicListings,
+  applyResultFilters,
+  voiceFiltersToResultFilters,
+  suggestRelaxation,
+} from '../lib/listings';
+import { filterAppliedMessage, filterClearedMessage, filterNoResultsMessage } from '../lib/filterMessages';
+import { hasDirectBuses } from '../lib/breakJourneyService';
 import { buildOtaDeepLink, OTA_LIST } from '../lib/ota';
+import { getLanguage } from '../lib/languages';
+import { runI18nAudit } from '../lib/i18nAudit';
+import {
+  CLARIFICATIONS,
+  CONFIRMATIONS,
+  SERVER_WAKING_MSG,
+  MIC_PERMISSION_ERROR,
+  EMPTY_TRANSCRIPT_MSG,
+  sttUnsupportedMessage,
+  ttsUnavailableMessage,
+  pickMessage,
+} from '../lib/voiceMessages';
 import {
   speakWithBrowser,
   getRecognitionLang,
   getSpeechRecognitionCtor,
+  canUseBrowserStt,
+  markLocaleUnsupported,
   primeAudio,
   BACKEND_URL,
   type SpeakResult,
@@ -22,50 +51,8 @@ import {
 // here so existing imports from this module keep working.
 export { CITY_ALIASES } from '../lib/cities';
 
-const CLARIFICATIONS: Record<string, string> = {
-  te: 'దయచేసి మీరు ఏ నగరం నుండి ఏ నగరానికి వెళ్లాలనుకుంటున్నారో చెప్పండి (ఉదా: విజయవాడ నుండి హైదరాబాద్).',
-  hi: 'कृपया प्रस्थान और गंतव्य शहर बताएं (जैसे: विजयवाड़ा से हैदराबाद)।',
-  ta: 'தயவுசெய்து புறப்படும் மற்றும் செல்லும் நகரத்தைக் கூறுங்கள் (எ.கா: விஜயவாடாவிலிருந்து ஹைதராபாத்).',
-  kn: 'ದಯವಿಟ್ಟು ಹೊರಡುವ ಮತ್ತು ತಲುಪುವ ನಗರವನ್ನು ತಿಳಿಸಿ (ಉದಾ: ವಿಜಯವಾಡದಿಂದ ಹೈದರಾಬಾದ್).',
-  ml: 'ദയവായി പുറപ്പെടുന്ന നഗരവും എത്തുന്ന നഗരവും പറയുക (ഉദാ: കൊച്ചിയിൽ നിന്ന് വരംഗലിലേക്ക്).',
-  mr: 'कृपया प्रस्थान आणि गंतव्य शहर सांगा.',
-  gu: 'કૃપા કરીને ઉપડવાનું અને પહોંચવાનું શહેર જણાવો.',
-  bn: 'অনুগ্রহ করে যাত্রার শহর এবং গন্তব্য জানান।',
-  ur: 'براہ کرم روانگی کا شہر اور منزل بتائیں۔',
-  pa: 'ਕਿਰਪਾ ਕਰਕੇ ਚੱਲਣ ਅਤੇ ਪਹੁੰਚਣ ਦਾ ਸ਼ਹਿਰ ਦੱਸੋ।',
-  or: 'ଦୟାକରି ଯାତ୍ରା ଆରମ୍ଭ ଏବଂ ଗନ୍ତବ୍ୟ ସହର କୁହନ୍ତୁ।',
-  en: 'Please specify your origin and destination cities (e.g., Vijayawada to Hyderabad).',
-};
-
-const CONFIRMATIONS: Record<string, (o: string, d: string) => string> = {
-  te: (o, d) => `సరే! మీరు ${o} నుండి ${d} వెళ్లే బస్సులను చూపిస్తున్నాను.`,
-  hi: (o, d) => `ठीक है! हम आपको ${o} से ${d} जाने वाली बसें दिखा रहे हैं।`,
-  ta: (o, d) => `சரி! நாங்கள் உங்களுக்கு ${o} இலிருந்து ${d} செல்லும் பேருந்துகளைக் காட்டுகிறோம்.`,
-  kn: (o, d) => `సరి! ನಾವು ನಿಮಗೆ ${o} ದಿಂದ ${d} ಗೆ ಹೋಗುವ ಬಸ್‌ಗಳನ್ನು ತೋರಿಸುತ್ತಿದ್ದೇವೆ.`,
-  ml: (o, d) => `ശരി! ഞങ്ങൾ നിങ്ങൾക്ക് ${o} ൽ നിന്ന് ${d} ലേക്ക് പോകുന്ന ബസുകൾ കാണിക്കുന്നു.`,
-  mr: (o, d) => `ठीक आहे! आम्ही तुम्हाला ${o} ते ${d} जाणाऱ्या बसेस दाखवत आहोत.`,
-  gu: (o, d) => `બરાબર! અમે તમને ${o} થી ${d} જતી બસો બતાવી રહ્યા છીએ.`,
-  bn: (o, d) => `ঠিক আছে! আমরা আপনাকে ${o} থেকে ${d} যাওয়ার বাসগুলো দেখাচ্ছি।`,
-  ur: (o, d) => `ٹھیک ہے! ہم آپ کو ${o} سے ${d} جانے والی بسیں دکھا رہے ہیں۔`,
-  pa: (o, d) => `ਠੀਕ ਹੈ! ਅਸੀਂ ਤੁਹਾਨੂੰ ${o} ਤੋਂ ${d} ਜਾਣ ਵਾਲੀਆਂ ਬੱਸਾਂ ਦਿਖਾ ਰਹੇ ਹਾਂ।`,
-  or: (o, d) => `ଠିକ୍ ଅଛି! ଆମେ ଆପଣଙ୍କୁ ${o} ରୁ ${d} ଯାଉଥିବା ବସ୍ ଦେଖାଉଛୁ।`,
-  en: (o, d) => `Got it! You're planning to travel from ${o} to ${d}.`,
-};
-
-const SERVER_WAKING_MSG: Record<string, string> = {
-  te: '⏳ సర్వర్ మేల్కొంటోంది… ప్రస్తుతం మీ ఫోన్ స్పీచ్ ఉపయోగిస్తున్నాము.',
-  hi: '⏳ सर्वर जाग रहा है… तब तक डिवाइस स्पीच का उपयोग हो रहा है।',
-  ta: '⏳ சர்வர் விழிக்கிறது… தற்போது சாதன பேச்சு பயன்படுத்தப்படுகிறது.',
-  kn: '⏳ ಸರ್ವರ್ ಎಚ್ಚರಗೊಳ್ಳುತ್ತಿದೆ… ಸದ್ಯಕ್ಕೆ ಸಾಧನದ ಧ್ವನಿ ಬಳಸಲಾಗುತ್ತಿದೆ.',
-  ml: '⏳ സെർവർ ഉണരുന്നു… തൽക്കാലം ഉപകരണ സ്പീച്ച് ഉപയോഗിക്കുന്നു.',
-  mr: '⏳ सर्व्हर जागत आहे… तोपर्यंत डिव्हाइस स्पीच वापरत आहोत.',
-  gu: '⏳ સર્વર જાગી રહ્યું છે… ત્યાં સુધી ડિવાઇસ સ્પીચ વાપરીએ છીએ.',
-  bn: '⏳ সার্ভার জেগে উঠছে… আপাতত ডিভাইস স্পিচ ব্যবহার করা হচ্ছে।',
-  ur: '⏳ سرور بیدار ہو رہا ہے… فی الحال ڈیوائس اسپیچ استعمال ہو رہی ہے۔',
-  pa: '⏳ ਸਰਵਰ ਜਾਗ ਰਿਹਾ ਹੈ… ਤਦ ਤੱਕ ਡਿਵਾਈਸ ਸਪੀਚ ਵਰਤ ਰਹੇ ਹਾਂ।',
-  or: '⏳ ସର୍ଭର ଜାଗୁଛି… ବର୍ତ୍ତମାନ ଡିଭାଇସ୍ ସ୍ପିଚ୍ ବ୍ୟବହାର ହେଉଛି।',
-  en: '⏳ Server is waking up… using device speech meanwhile.',
-};
+// Reply strings now live in lib/voiceMessages.ts so the i18n audit can verify that
+// every supported language has every key (ISSUE 0c/0e).
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -102,7 +89,6 @@ export default function VoiceSearchBar() {
   const { currentLanguage, setLanguage, t } = useLanguage();
   const { session, updateSession } = useSearch();
 
-  const [languages, setLanguages] = useState<LanguageOption[]>(SUPPORTED_LANGUAGES);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -137,16 +123,12 @@ export default function VoiceSearchBar() {
     setPipelineLogs((prev) => [newLog, ...prev.slice(0, 49)]);
   }
 
-  useEffect(() => {
-    fetch(`${BACKEND_URL}/languages`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.languages?.length) setLanguages(data.languages);
-      })
-      .catch(() => {
-        setLanguages(SUPPORTED_LANGUAGES);
-      });
-  }, []);
+  // ISSUE 0: the picker below is driven by SUPPORTED_LANGUAGES — the SAME list the
+  // login/onboarding screen and the header switcher use. It used to be replaced by
+  // whatever `GET /languages` returned (23 backend entries, several with no STT, no
+  // TTS and no UI translations), which is exactly how the two sets drifted apart.
+  // The backend list is no longer consulted for the picker.
+  const i18nReport = useRef(runI18nAudit()).current;
 
   async function startVoiceSearch() {
     // Bug 3 Fix: Prime audio context on user gesture to prevent browser autoplay blocking
@@ -200,23 +182,40 @@ export default function VoiceSearchBar() {
       recorder.start(100);
       mediaRecorderRef.current = recorder;
       addPipelineLog('1. MediaRecorder', 'MediaRecorder started. Recording WebM audio stream...', 'success');
-    } catch (err) {
-      addPipelineLog('Mic Error', `Microphone permission denied or device error: ${err}`, 'error');
-      setMicError('Microphone permission required for voice search. Please allow microphone access in your browser.');
+    } catch {
+      addPipelineLog('Mic Error', 'Microphone permission denied or audio device missing', 'error');
+      setMicError(pickMessage(MIC_PERMISSION_ERROR, currentLanguage));
       isRecordingRef.current = false;
       setIsRecording(false);
       return;
     }
 
-    // 2. Optional SpeechRecognition for real-time live preview (Chrome/Edge)
+    // Optional SpeechRecognition for real-time live preview feedback.
+    // ISSUE 0(a): recognition.lang comes from the shared language table, and we only
+    // start browser recognition when Chrome actually supports that locale. For
+    // languages it does not support (Odia) Chrome silently transcribes as English —
+    // so we skip it entirely and let backend Whisper do the work rather than feeding
+    // confident-looking nonsense into the parser.
     const SpeechRecognition = getSpeechRecognitionCtor();
+    const browserSttUsable = canUseBrowserStt(currentLanguage);
 
-    if (SpeechRecognition) {
+    if (!browserSttUsable) {
+      setSttEngine(`Backend Whisper only (${getLanguage(currentLanguage).name})`);
+      addPipelineLog(
+        '1b. STT Routing',
+        `Browser has no ${getLanguage(currentLanguage).name} recognition — routing audio to backend Whisper.`,
+        'warn'
+      );
+      setSpokenText(sttUnsupportedMessage(currentLanguage));
+    }
+
+    if (SpeechRecognition && browserSttUsable) {
       try {
         const recog = new SpeechRecognition();
         recog.continuous = true;
         recog.interimResults = true;
         recog.lang = getRecognitionLang(currentLanguage);
+        setSttEngine(`Browser Web Speech (${recog.lang})`);
 
         recog.onresult = (event: SpeechRecognitionResultEvent) => {
           let currentText = '';
@@ -232,13 +231,28 @@ export default function VoiceSearchBar() {
         };
 
         recog.onerror = (e: SpeechRecognitionErrorEvent) => {
+          // A locale Chrome cannot handle is remembered for the rest of the session so
+          // we never silently mis-transcribe it again.
+          if (e.error === 'language-not-supported') {
+            markLocaleUnsupported(currentLanguage);
+            fullTranscriptRef.current = '';
+            setTranscript('');
+            setSpokenText(sttUnsupportedMessage(currentLanguage));
+            setSttEngine(`Backend Whisper only (${getLanguage(currentLanguage).name})`);
+            addPipelineLog(
+              'STT Preview',
+              `Chrome rejected locale ${getRecognitionLang(currentLanguage)} — backend Whisper will transcribe instead.`,
+              'warn'
+            );
+            return;
+          }
           addPipelineLog('STT Preview', `Live preview speech event: ${e.error} (falling back to backend Whisper)`, 'warn');
         };
 
         recognitionRef.current = recog;
         recog.start();
       } catch (e) {
-        console.log('Web Speech preview error:', e);
+        addPipelineLog('STT Preview', `Web Speech preview unavailable (${e}) — using backend Whisper.`, 'warn');
       }
     }
   }
@@ -276,9 +290,11 @@ export default function VoiceSearchBar() {
   function handleEmptyTranscriptGuard() {
     setIsProcessing(false);
     addPipelineLog('STT Guard', '❌ Empty transcript. Audio not heard. Halting NLU pipeline.', 'error');
-    const emptyMsg = 'Microphone audio was not heard. Please hold the mic button and speak clearly into your microphone.';
+    // Explained in the user's language, and spoken, so the failure is never silent.
+    const emptyMsg = pickMessage(EMPTY_TRANSCRIPT_MSG, currentLanguage);
     setSpokenText(emptyMsg);
     setNeedsClarification(true);
+    void speakWithBrowser(emptyMsg, currentLanguage).then(setTtsInfo);
   }
 
   function clientSideParseIntent(text: string, defaultLang: string, currentContextOrigin?: string | null) {
@@ -299,27 +315,33 @@ export default function VoiceSearchBar() {
       'info'
     );
 
-    let origin: string | null = currentContextOrigin || session.source || null;
-    let destination: string | null = session.destination || null;
+    // ISSUE 1: extract price range / type / AC / model / rating / amenities and MERGE
+    // them with what was already captured, so "only Volvo" keeps the price and rating.
+    const spokenFilters = extractFilters(text);
+    const mergedFilters = mergeFilters(session.filters || EMPTY_FILTERS, spokenFilters);
+    addPipelineLog(
+      '7b. Filter Extraction',
+      hasAnyFilter(mergedFilters)
+        ? `Filters: ${describeFilters(mergedFilters, lang)}${spokenFilters.reset ? ' (cleared)' : ''}`
+        : 'No filters mentioned',
+      hasAnyFilter(mergedFilters) ? 'success' : 'info'
+    );
 
-    if (cityResult.cities.length >= 2) {
-      origin = cityResult.cities[0];
-      destination = cityResult.cities[1];
-    } else if (cityResult.cities.length === 1) {
-      const singleCity = cityResult.cities[0];
-      if (!origin) {
-        origin = singleCity;
-      } else if (singleCity.toLowerCase() !== origin.toLowerCase()) {
-        destination = singleCity;
-      }
-    }
+    // Start from whatever the shared session already knows so a follow-up answer
+    // merges with captured details instead of resetting them (BUG 2). Roles come from
+    // postpositions, so "chennai ku" is understood as a DESTINATION (ISSUE 2).
+    const { origin, destination } = resolveRoute(
+      cityResult,
+      currentContextOrigin || session.source || null,
+      session.destination || null
+    );
 
     const mergedDate = prefResult.date || session.date || new Date().toISOString().split('T')[0];
     const mergedTime = prefResult.time || session.time;
     const mergedBusType = prefResult.busType || session.busType;
     const mergedSeatType = prefResult.seatType || session.seatType;
 
-    if (origin || destination) {
+    if (origin || destination || hasAnyFilter(mergedFilters) || spokenFilters.reset) {
       updateSession({
         source: origin || session.source,
         destination: destination || session.destination,
@@ -328,6 +350,7 @@ export default function VoiceSearchBar() {
         busType: mergedBusType,
         seatType: mergedSeatType,
         language: lang,
+        filters: mergedFilters,
       });
       addPipelineLog(
         'Global SearchSession Sync',
@@ -341,17 +364,53 @@ export default function VoiceSearchBar() {
     const originNative = origin ? CITY_TRANSLATIONS[origin]?.[lang] || origin : '';
     const destNative = destination ? CITY_TRANSLATIONS[destination]?.[lang] || destination : '';
 
+    // Filter confirmation, counted against the same listings the results page renders,
+    // with a nearest-relaxation offer when nothing matches (ISSUE 1c/1d).
+    let filterSentence = '';
+    if (ready && origin && destination) {
+      const inventory = hasDirectBuses(origin, destination)
+        ? generateDynamicListings(origin, destination, mergedDate)
+        : [];
+      if (inventory.length > 0) {
+        if (spokenFilters.reset) {
+          filterSentence = filterClearedMessage(lang, inventory.length);
+        } else if (hasAnyFilter(mergedFilters)) {
+          const resultFilters = voiceFiltersToResultFilters(mergedFilters);
+          const matched = applyResultFilters(inventory, resultFilters);
+          if (matched.length > 0) {
+            filterSentence = filterAppliedMessage(lang, describeFilters(mergedFilters, lang), matched.length);
+          } else {
+            const relaxation = suggestRelaxation(inventory, resultFilters);
+            if (relaxation) {
+              filterSentence = filterNoResultsMessage(
+                lang,
+                describeFilters(mergedFilters, lang),
+                relaxation.relaxed,
+                relaxation.count,
+                relaxation.samplePrice
+              );
+            }
+          }
+          addPipelineLog('7c. Filter Application', filterSentence, 'success');
+        }
+      }
+    }
+
     const template = getResponseTemplate(lang);
     let spoken: string;
     if (ready) {
-      const confirmationFn = CONFIRMATIONS[lang] || CONFIRMATIONS['en'];
+      // Confirm the parsed route back in the user's language, including the travel
+      // date (BUG 3). Whether the route has direct buses is decided on the Results
+      // page, which shows connecting journeys when there are none (BUG 4).
+      const confirmationFn = pickMessage(CONFIRMATIONS, lang);
       spoken = `${confirmationFn(originNative, destNative)}${formatDateSuffix(mergedDate)}`;
+      if (filterSentence) spoken += ` ${filterSentence}`;
     } else if (cityResult.confidence === 'low' && cityResult.lowConfCity) {
       spoken = template.lowConfidencePrompt(cityResult.lowConfCity);
     } else if (origin) {
       spoken = template.needDest(originNative);
     } else {
-      spoken = CLARIFICATIONS[lang] || CLARIFICATIONS['en'];
+      spoken = pickMessage(CLARIFICATIONS, lang);
     }
 
     if (origin && destination) {
@@ -413,7 +472,9 @@ export default function VoiceSearchBar() {
       setLanguage(parsed.intent.language);
     }
 
-    // Speak in the detected language using multi-stage TTS fallback chain
+    // Speak the reply in the DETECTED language. ISSUE 0(d): browser voice first, then
+    // backend edge-tts, and if neither exists the reply stays visible as text with an
+    // explicit "no audio in this language" note — never silence with no explanation.
     void speakWithBrowser(parsed.spoken_text, parsed.intent.language).then((r) => {
       setTtsInfo(r);
       addPipelineLog(
@@ -536,7 +597,7 @@ export default function VoiceSearchBar() {
               onChange={(e) => setLanguage(e.target.value)}
               className="rounded-lg border border-white/20 bg-slate-800 px-3 py-1 text-xs font-semibold text-white outline-none cursor-pointer hover:border-blue-400 transition-colors"
             >
-              {languages.map((lang) => (
+              {SUPPORTED_LANGUAGES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
                   {lang.native_name} ({lang.name})
                 </option>
@@ -602,7 +663,10 @@ export default function VoiceSearchBar() {
             <p className="text-sm font-medium leading-relaxed">{spokenText}</p>
           </div>
           {ttsInfo && !ttsInfo.ok && (
-            <p className="pl-8 text-[11px] font-semibold text-amber-300">🔇 Audio unavailable ({ttsInfo.detail}) — reply shown above as text.</p>
+            <p className="pl-8 text-[11px] font-semibold text-amber-300">
+              🔇 {ttsUnavailableMessage(debugEntities.detectedLang || currentLanguage)}{' '}
+              <span className="opacity-70">({ttsInfo.detail})</span>
+            </p>
           )}
         </div>
       )}
@@ -691,6 +755,33 @@ export default function VoiceSearchBar() {
                     : `unavailable · ${ttsInfo.detail}`
                   : 'Not spoken yet'}
               </span>
+            </div>
+          </div>
+
+          {/* ISSUE 0(e): per-language self-check. Any language missing a translation
+              key, a browser STT locale or a TTS voice is listed here rather than
+              failing silently at runtime. */}
+          <div className="pt-2 border-t border-white/10">
+            <span className="text-slate-400 font-bold block mb-1">
+              🌐 Language coverage self-check ({i18nReport.languages.length} languages,{' '}
+              {i18nReport.allGaps.length} missing key{i18nReport.allGaps.length === 1 ? '' : 's'}):
+            </span>
+            <div className="max-h-28 overflow-y-auto rounded border border-white/10 bg-black/60 p-2 text-[10px]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
+                {i18nReport.languages.map((l) => (
+                  <div key={l.code} className="flex items-center gap-1.5">
+                    <span className={l.missingKeys.length ? 'text-red-400' : 'text-emerald-400'}>
+                      {l.missingKeys.length ? '✕' : '✓'}
+                    </span>
+                    <span className="text-slate-300 font-semibold w-16 shrink-0">{l.code} · {l.name}</span>
+                    <span className="text-slate-500">
+                      STT: {l.sttPath === 'browser-then-server' ? 'browser+server' : 'server only'} · TTS:{' '}
+                      {l.ttsPath === 'browser-or-edge-tts' ? 'voice' : 'text only'}
+                      {l.missingKeys.length ? ` · ${l.missingKeys.length} gap(s)` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,10 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Send, Mic, Square, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Send, Mic, Square, Sparkles, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useSearch } from '../context/SearchContext';
 import { processUserMessage, ChatMessage, ConversationState, getNearbyBoardingPoints } from '../lib/agenticAiService';
-import { speakWithBrowser, getRecognitionLang, getSpeechRecognitionCtor, primeAudio, BACKEND_URL, type SpeechRecognitionInstance, type SpeechRecognitionResultEvent } from '../lib/speech';
+import { EMPTY_FILTERS } from '../lib/filterExtraction';
+import {
+  speakWithBrowser,
+  getRecognitionLang,
+  getSpeechRecognitionCtor,
+  canUseBrowserStt,
+  markLocaleUnsupported,
+  primeAudio,
+  BACKEND_URL,
+  type SpeechRecognitionInstance,
+  type SpeechRecognitionResultEvent,
+  type SpeechRecognitionErrorEvent,
+} from '../lib/speech';
+import {
+  SERVER_WAKING_MSG,
+  MIC_PERMISSION_ERROR,
+  EMPTY_TRANSCRIPT_MSG,
+  sttUnsupportedMessage,
+  pickMessage,
+} from '../lib/voiceMessages';
 
 export default function ChatbotWidget() {
   const navigate = useNavigate();
@@ -15,6 +34,8 @@ export default function ChatbotWidget() {
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
+  const warmedRef = useRef(false);
 
   const [state, setState] = useState<ConversationState>({
     origin: session.source,
@@ -27,7 +48,20 @@ export default function ChatbotWidget() {
     language: currentLanguage,
     step: 'origin',
     confidence: 'high',
+    filters: session.filters || EMPTY_FILTERS,
   });
+
+  // ISSUE 5: Render's free tier sleeps. Ping /health as soon as the chat opens so the
+  // backend is awake by the time it is needed, and tell the user in their language
+  // while it wakes instead of failing silently.
+  useEffect(() => {
+    if (!isOpen || warmedRef.current) return;
+    warmedRef.current = true;
+    setServerWaking(true);
+    fetch(`${BACKEND_URL}/health`)
+      .then(() => setServerWaking(false))
+      .catch(() => setServerWaking(false));
+  }, [isOpen]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -72,9 +106,10 @@ export default function ChatbotWidget() {
         origin: session.source || state.origin,
         destination: session.destination || state.destination,
         date: session.date || state.date,
+        filters: state.filters || session.filters || EMPTY_FILTERS,
       };
 
-      const { responseMessage, nextState } = processUserMessage(query, currentState);
+      const { responseMessage, nextState, filters } = processUserMessage(query, currentState);
 
       // Bug 5 Fix: Update LanguageContext live per turn based on detected input language
       if (nextState.language && nextState.language !== currentLanguage) {
@@ -85,11 +120,15 @@ export default function ChatbotWidget() {
       updateSession({
         source: nextState.origin,
         destination: nextState.destination,
+        // A spoken date always wins over the session/form value (ISSUE 5).
         date: nextState.date || session.date,
         time: nextState.time,
         busType: nextState.busType,
         seatType: nextState.seatType,
         language: nextState.language,
+        // Spoken filters flow into the shared session so the results page and the
+        // filter panel pick them up (ISSUE 1b).
+        filters,
       });
 
       setMessages((prev) => [...prev, responseMessage]);
@@ -145,12 +184,16 @@ export default function ChatbotWidget() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch {}
+        } catch {
+          /* recognition already stopped */
+        }
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         try {
           mediaRecorderRef.current.stop();
-        } catch {}
+        } catch {
+          /* recorder already stopped */
+        }
       }
       setIsRecording(false);
       return;
@@ -158,42 +201,15 @@ export default function ChatbotWidget() {
 
     const SpeechRecognition = getSpeechRecognitionCtor();
 
-    // Bug 4 Fix: If Web Speech is unsupported (Safari, Firefox), route seamlessly to MediaRecorder -> Whisper
-    if (!SpeechRecognition) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        chunksRef.current = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = async () => {
-          stream.getTracks().forEach((t) => t.stop());
-          const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          if (audioBlob.size > 0) {
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'chat_rec.webm');
-            formData.append('selected_language', currentLanguage);
-            try {
-              const res = await fetch(`${BACKEND_URL}/voice-search`, { method: 'POST', body: formData });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.transcript) handleSend(data.transcript);
-              }
-            } catch {}
-          }
-          setIsRecording(false);
-        };
-
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
-      } catch {
-        alert('Microphone access required. Please allow mic permissions.');
-        setIsRecording(false);
+    // Route to the backend Whisper model whenever the browser cannot do the job:
+    //  - no Web Speech engine at all (Safari, Firefox), or
+    //  - Web Speech exists but has no engine for this language (ISSUE 0a). Chrome
+    //    silently transcribes those as English, so using it would be worse than not.
+    if (!SpeechRecognition || !canUseBrowserStt(currentLanguage)) {
+      if (SpeechRecognition && !canUseBrowserStt(currentLanguage)) {
+        pushAssistantMessage(sttUnsupportedMessage(currentLanguage));
       }
+      await startBackendRecording();
       return;
     }
 
@@ -209,7 +225,16 @@ export default function ChatbotWidget() {
         if (text) handleSend(text);
       };
 
-      recog.onerror = () => setIsRecording(false);
+      recog.onerror = (e: SpeechRecognitionErrorEvent) => {
+        setIsRecording(false);
+        // A locale Chrome cannot handle is remembered for the session, and the audio
+        // is re-routed to backend Whisper rather than dead-ending (ISSUE 0a).
+        if (e.error === 'language-not-supported') {
+          markLocaleUnsupported(currentLanguage);
+          pushAssistantMessage(sttUnsupportedMessage(currentLanguage));
+          void startBackendRecording();
+        }
+      };
       recog.onend = () => setIsRecording(false);
 
       recognitionRef.current = recog;
@@ -218,6 +243,73 @@ export default function ChatbotWidget() {
     } catch {
       setIsRecording(false);
     }
+  }
+
+  /**
+   * MediaRecorder -> backend Whisper. Used for browsers with no Web Speech engine
+   * (Safari, Firefox) and for languages Chrome cannot recognise. Whisper handles every
+   * supported language, so this is a real fallback rather than a dead end.
+   */
+  async function startBackendRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size > 0) {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'chat_rec.webm');
+          formData.append('selected_language', currentLanguage);
+          try {
+            const res = await fetch(`${BACKEND_URL}/voice-search`, { method: 'POST', body: formData });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.transcript) {
+                handleSend(data.transcript);
+              } else {
+                pushAssistantMessage(pickMessage(EMPTY_TRANSCRIPT_MSG, currentLanguage));
+              }
+            } else {
+              pushAssistantMessage(pickMessage(EMPTY_TRANSCRIPT_MSG, currentLanguage));
+            }
+          } catch {
+            // Never end silently — say the server could not be reached, in-language.
+            pushAssistantMessage(pickMessage(SERVER_WAKING_MSG, currentLanguage));
+          }
+        } else {
+          pushAssistantMessage(pickMessage(EMPTY_TRANSCRIPT_MSG, currentLanguage));
+        }
+        setIsRecording(false);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      // Was a blocking alert() in English — now explained in the user's language.
+      pushAssistantMessage(pickMessage(MIC_PERMISSION_ERROR, currentLanguage));
+      setIsRecording(false);
+    }
+  }
+
+  /** Appends an assistant message and speaks it, so no failure path is silent. */
+  function pushAssistantMessage(text: string) {
+    const msg: ChatMessage = {
+      id: `sys-${Date.now()}`,
+      sender: 'assistant',
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      language: currentLanguage,
+    };
+    setMessages((prev) => [...prev, msg]);
+    void speakWithBrowser(text, currentLanguage);
   }
 
   function resetChat() {
@@ -232,7 +324,9 @@ export default function ChatbotWidget() {
       language: currentLanguage,
       step: 'origin',
       confidence: 'high',
+      filters: { ...EMPTY_FILTERS },
     });
+    updateSession({ filters: { ...EMPTY_FILTERS } });
     setMessages([
       {
         id: `welcome-${Date.now()}`,
@@ -300,6 +394,13 @@ export default function ChatbotWidget() {
               </button>
             </div>
           </div>
+
+          {/* Free-tier backend cold-start notice, in the user's language (ISSUE 5). */}
+          {serverWaking && (
+            <div className="border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[11px] font-semibold text-amber-300">
+              {pickMessage(SERVER_WAKING_MSG, currentLanguage)}
+            </div>
+          )}
 
           {/* Messages Feed */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">

@@ -1,6 +1,7 @@
-import React from 'react';
-import { TrendingDown, Calendar, Sparkles, AlertCircle, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
+
+import { TrendingDown, Sparkles, ArrowUpRight, ArrowDownRight, ShieldCheck } from 'lucide-react';
 import { generatePricePrediction } from '../lib/pricePredictionService';
+import { useLanguage } from '../context/LanguageContext';
 
 interface PricePredictionCardProps {
   origin: string;
@@ -10,6 +11,7 @@ interface PricePredictionCardProps {
 }
 
 export default function PricePredictionCard({ origin, destination, travelDate, onSelectDate }: PricePredictionCardProps) {
+  const { t, getCityName } = useLanguage();
   const prediction = generatePricePrediction(origin, destination, travelDate);
 
   return (
@@ -21,20 +23,20 @@ export default function PricePredictionCard({ origin, destination, travelDate, o
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold text-white">Smart Weekly Price Prediction</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">{t('forecastTitle')}</h3>
               <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3" /> {prediction.confidencePercent}% Confidence
+                <ShieldCheck className="h-3 w-3" /> {prediction.confidencePercent}% {t('confidence')}
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              Historical & real-time time-series fare trends for {origin} → {destination}
+              {t('forecastSub')} {getCityName(origin)} → {getCityName(destination)}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-center">
-          <span className="text-xs text-slate-400">Max Savings:</span>
-          <span className="text-base font-black text-emerald-400">Up to ₹{prediction.maxSavings}</span>
+          <span className="text-xs text-slate-400">{t('maxSavings')}:</span>
+          <span className="text-base font-black text-emerald-400">{t('upTo')} ₹{prediction.maxSavings}</span>
         </div>
       </div>
 
@@ -74,7 +76,7 @@ export default function PricePredictionCard({ origin, destination, travelDate, o
 
               {f.isCheapest ? (
                 <span className="badge bg-emerald-500 text-slate-900 font-extrabold text-[9px] px-1.5 py-0.5 rounded uppercase">
-                  Cheapest
+                  {t('cheapestDay')}
                 </span>
               ) : (
                 <span className="text-[10px] opacity-0 group-hover:opacity-100 text-slate-400">Select</span>

@@ -42,6 +42,44 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
     }
   };
 
+  /**
+   * ISSUE 5: was `alert('Downloading PDF Ticket...')` — a dead button that downloaded
+   * nothing. Now it actually produces a ticket file the user can keep.
+   */
+  const handleDownloadTicket = () => {
+    const ticket = [
+      'YATRA SAATHI — E-TICKET',
+      '========================',
+      `PNR:        ${pnrNumber}`,
+      `Route:      ${originCity} -> ${destCity}`,
+      `Operator:   ${listing.operator_name}`,
+      `Bus:        ${listing.bus_type.toUpperCase()} / ${listing.ac_status.toUpperCase()}`,
+      `Departure:  ${listing.departure_time}`,
+      `Arrival:    ${listing.arrival_time}`,
+      `Seats:      ${selectedSeats.join(', ')}`,
+      `Passenger:  ${passengerName || 'Passenger'} (${passengerAge || '-'} yrs)`,
+      `Mobile:     ${mobile}`,
+      `Email:      ${email}`,
+      '------------------------',
+      `Base fare:  INR ${baseFare}`,
+      `GST (5%):   INR ${gst}`,
+      `Total paid: INR ${totalPayable}`,
+      '------------------------',
+      `Booked via: ${listing.ota_source}`,
+      'Demo booking — no payment was actually processed.',
+    ].join('\n');
+
+    const blob = new Blob([ticket], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `YatraSaathi-${pnrNumber}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handlePayAndConfirm = (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -295,7 +333,7 @@ export default function BookingModal({ listing, onClose }: BookingModalProps) {
 
             <div className="flex items-center gap-4">
               <button
-                onClick={() => alert(`Downloading PDF Ticket for PNR: ${pnrNumber}`)}
+                onClick={handleDownloadTicket}
                 className="btn-primary flex items-center gap-2"
               >
                 <Download className="h-4 w-4" /> {t('downloadTicket')}

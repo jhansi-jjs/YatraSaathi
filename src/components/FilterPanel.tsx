@@ -1,14 +1,11 @@
 import { Filter } from 'lucide-react';
 import type { BusListingWithRoute } from '../lib/types';
 import { useLanguage } from '../context/LanguageContext';
+import type { ResultFilterState } from '../lib/listings';
 
-export interface FilterState {
-  busTypes: string[];
-  acStatus: string[];
-  busModels: string[];
-  maxPrice: number | null;
-  minRating: number;
-}
+// The panel is driven by the shared results filter state, so filters set by voice and
+// filters set by hand are literally the same object (ISSUE 1b).
+export type FilterState = ResultFilterState;
 
 interface FilterPanelProps {
   filters: FilterState;
@@ -101,10 +98,30 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
         </div>
       </div>
 
-      {/* Max Price */}
+      {/* Price range. A spoken "1000 to 1500" sets both ends, so both are editable. */}
       <div className="mb-5">
         <p className="mb-2 text-xs font-semibold text-slate-500">
-          {t('maxPriceLabel')}: ₹{filters.maxPrice?.toLocaleString('en-IN') || maxAvailablePrice.toLocaleString('en-IN')}
+          {t('minPriceLabel')}: ₹{(filters.minPrice ?? 0).toLocaleString('en-IN')}
+        </p>
+        <input
+          type="range"
+          min={0}
+          max={maxAvailablePrice || 2000}
+          step={50}
+          value={filters.minPrice ?? 0}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            onChange({
+              ...filters,
+              minPrice: next === 0 ? null : next,
+              // Never let the floor cross the ceiling.
+              maxPrice: filters.maxPrice !== null && next > filters.maxPrice ? next : filters.maxPrice,
+            });
+          }}
+          className="w-full accent-[#0066ff]"
+        />
+        <p className="mb-2 mt-3 text-xs font-semibold text-slate-500">
+          {t('maxPriceLabel')}: ₹{(filters.maxPrice ?? maxAvailablePrice).toLocaleString('en-IN')}
         </p>
         <input
           type="range"
@@ -112,7 +129,14 @@ export default function FilterPanel({ filters, onChange, listings, onReset }: Fi
           max={maxAvailablePrice || 2000}
           step={50}
           value={filters.maxPrice ?? maxAvailablePrice}
-          onChange={(e) => onChange({ ...filters, maxPrice: Number(e.target.value) })}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            onChange({
+              ...filters,
+              maxPrice: next,
+              minPrice: filters.minPrice !== null && next < filters.minPrice ? next : filters.minPrice,
+            });
+          }}
           className="w-full accent-[#0066ff]"
         />
       </div>

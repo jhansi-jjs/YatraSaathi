@@ -1,17 +1,27 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Bus, LogOut, ArrowLeft, Home, Bell, Settings, Shield, Globe, User } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage, SUPPORTED_LANGUAGES } from '../context/LanguageContext';
+import { getSavedTravelWatches } from '../lib/travelWatchService';
 
 export default function Header() {
-  const { user, profile, signOut } = useAuth();
-  const { currentLanguage, setLanguage } = useLanguage();
+  const { user, profile, signOut, contact } = useAuth();
+  const { currentLanguage, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
   const isWelcomePage = location.pathname === '/';
+
+  // Refresh the badge on every navigation so creating/deleting a watch is reflected.
+  useEffect(() => {
+    setAlertCount(getSavedTravelWatches().length);
+    setNotifOpen(false);
+    setProfileOpen(false);
+  }, [location.pathname]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -124,20 +134,50 @@ export default function Header() {
           <Link
             to="/dashboard"
             className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-100 transition-colors shadow-sm"
-            title="User Dashboard & Travel Watches"
+            title={t('myAlerts')}
           >
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </Link>
 
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="relative rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
-            title="Notifications & Travel Watches"
-          >
-            <Bell className="h-4 w-4 text-amber-500" />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-500" />
-          </button>
+          {/* The bell badge now reflects the REAL number of saved travel watches and
+              its dropdown links to the dashboard, in the user's language (ISSUE 5). */}
+          <div className="relative">
+            <button
+              onClick={() => setNotifOpen(!notifOpen)}
+              className="relative rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+              title={t('myAlerts')}
+            >
+              <Bell className="h-4 w-4 text-amber-500" />
+              {alertCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+                  {alertCount}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl">
+                <p className="border-b border-slate-100 px-3 py-2 text-xs font-bold text-slate-900">
+                  {t('myAlerts')}
+                </p>
+                {alertCount === 0 ? (
+                  <p className="px-3 py-3 text-[11px] text-slate-500">{t('notificationsEmpty')}</p>
+                ) : (
+                  <p className="px-3 py-3 text-[11px] text-slate-600">
+                    {alertCount} · {t('watchAlertTitle')}
+                  </p>
+                )}
+                <Link
+                  to="/dashboard"
+                  onClick={() => setNotifOpen(false)}
+                  className="block rounded-xl px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50"
+                >
+                  {t('myAlerts')} →
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* User Profile Dropdown */}
           <div className="relative">
@@ -146,16 +186,18 @@ export default function Header() {
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
             >
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
-                {(profile?.full_name || user?.email || 'Guest').charAt(0).toUpperCase()}
+                {(contact.fullName || user?.email || 'Guest').charAt(0).toUpperCase()}
               </div>
-              <span className="hidden md:inline">{profile?.full_name || user?.email || 'Guest User'}</span>
+              <span className="hidden md:inline">{contact.fullName || user?.email || 'Guest User'}</span>
             </button>
 
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-2xl bg-white p-2 shadow-2xl border border-slate-200 text-slate-800 z-50 animate-in fade-in duration-150">
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white p-2 shadow-2xl border border-slate-200 text-slate-800 z-50 animate-in fade-in duration-150">
+                {/* ISSUE 4: both contact channels are visible at a glance. */}
                 <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                  <p className="text-xs font-bold text-slate-900 truncate">{profile?.full_name || 'Guest User'}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{user?.email || 'guest@yatrasaathi.in'}</p>
+                  <p className="text-xs font-bold text-slate-900 truncate">{contact.fullName || 'Guest User'}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{contact.email || 'guest@yatrasaathi.in'}</p>
+                  {contact.phone && <p className="text-[11px] text-slate-500 truncate">{contact.phone}</p>}
                 </div>
 
                 <Link
@@ -176,12 +218,22 @@ export default function Header() {
                   </Link>
                 )}
 
-                <button
-                  onClick={() => alert('Settings menu opened')}
+                {/* Was a dead alert() — now the real profile/settings page (ISSUE 5). */}
+                <Link
+                  to="/profile"
+                  onClick={() => setProfileOpen(false)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                  <Settings className="h-4 w-4 text-slate-500" /> App Settings
-                </button>
+                  <Settings className="h-4 w-4 text-slate-500" /> {t('profileTitle')}
+                </Link>
+
+                <Link
+                  to="/dashboard"
+                  onClick={() => setProfileOpen(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  <Bell className="h-4 w-4 text-slate-500" /> {t('myAlerts')}
+                </Link>
 
                 <button
                   onClick={handleSignOut}

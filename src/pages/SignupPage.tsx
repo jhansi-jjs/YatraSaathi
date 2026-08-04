@@ -2,21 +2,42 @@ import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bus, Mail, Lock, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import PhoneField from '../components/PhoneField';
+import { DEFAULT_COUNTRY, validatePhone, isValidEmail } from '../lib/phone';
 
 export default function SignupPage() {
   const { signUp } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [dial, setDial] = useState(DEFAULT_COUNTRY.dial);
+  const [national, setNational] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // ISSUE 4: BOTH contact fields are required at signup so a price alert can be
+  // delivered on either channel later without re-prompting.
+  const phoneCheck = validatePhone(dial, national);
+  const emailValid = isValidEmail(email);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!emailValid) {
+      setError(t('alertEmailInvalid'));
+      return;
+    }
+    if (!phoneCheck.valid) {
+      setError(t('alertPhoneInvalid'));
+      return;
+    }
+
     setLoading(true);
-    const { error: signUpError } = await signUp(email, password, fullName);
+    const { error: signUpError } = await signUp(email, password, fullName, phoneCheck.e164);
     setLoading(false);
     if (signUpError) {
       if (signUpError.includes('already registered') || signUpError.includes('already exists')) {
@@ -47,9 +68,11 @@ export default function SignupPage() {
                 <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
                 <span>{error}</span>
               </div>
-              <Link to="/login" className="text-left text-[11px] underline font-bold text-blue-600 mt-1">
-                Click here to Log In instead →
-              </Link>
+              {error.includes('already exists') && (
+                <Link to="/login" className="text-left text-[11px] underline font-bold text-blue-600 mt-1">
+                  Click here to Log In instead →
+                </Link>
+              )}
             </div>
           )}
 
@@ -83,6 +106,18 @@ export default function SignupPage() {
             </div>
           </div>
 
+          <div className="mb-4">
+            <PhoneField
+              dial={dial}
+              national={national}
+              onDialChange={setDial}
+              onNationalChange={setNational}
+              label={t('alertPhoneLabel')}
+              required
+              error={national && !phoneCheck.valid ? t('alertPhoneInvalid') : null}
+            />
+          </div>
+
           <div className="mb-6">
             <label className="mb-1.5 block text-xs font-semibold text-slate-700">Password</label>
             <div className="relative">
@@ -99,7 +134,11 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3 font-bold">
+          <button
+            type="submit"
+            disabled={loading || !emailValid || !phoneCheck.valid}
+            className="btn-primary w-full py-3 font-bold disabled:opacity-50"
+          >
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>

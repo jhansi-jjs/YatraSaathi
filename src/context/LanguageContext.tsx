@@ -1,139 +1,13 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { SUPPORTED_LANGUAGES, isSupportedLanguage, type LanguageOption } from '../lib/languages';
+import { CITY_TRANSLATIONS } from '../lib/cityData';
 
-export interface LanguageOption {
-  code: string;
-  name: string;
-  native_name: string;
-  voice_available: boolean;
-}
+// ISSUE 0: the language picker on the welcome/login screen, the header switcher and
+// the voice assistant all read this ONE list (src/lib/languages.ts). Re-exported here
+// so existing imports keep working without a second, drift-prone copy of the data.
+export { SUPPORTED_LANGUAGES, CITY_TRANSLATIONS };
+export type { LanguageOption };
 
-export const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  { code: 'en', name: 'English', native_name: 'English', voice_available: true },
-  { code: 'te', name: 'Telugu', native_name: 'తెలుగు', voice_available: true },
-  { code: 'hi', name: 'Hindi', native_name: 'हिन्दी', voice_available: true },
-  { code: 'ta', name: 'Tamil', native_name: 'தமிழ்', voice_available: true },
-  { code: 'kn', name: 'Kannada', native_name: 'ಕನ್ನಡ', voice_available: true },
-  { code: 'ml', name: 'Malayalam', native_name: 'മലയാളം', voice_available: true },
-  { code: 'mr', name: 'Marathi', native_name: 'मराठी', voice_available: true },
-  { code: 'gu', name: 'Gujarati', native_name: 'ગુજરાતી', voice_available: true },
-  { code: 'bn', name: 'Bengali', native_name: 'বাংলা', voice_available: true },
-  { code: 'ur', name: 'Urdu', native_name: 'اردو', voice_available: true },
-  { code: 'pa', name: 'Punjabi', native_name: 'ਪੰਜਾਬੀ', voice_available: true },
-  { code: 'or', name: 'Odia', native_name: 'ଓଡ଼ିଆ', voice_available: true },
-];
-
-export const CITY_TRANSLATIONS: Record<string, Record<string, string>> = {
-  Visakhapatnam: {
-    te: 'విశాఖపట్నం', hi: 'विशाखापट्टनम', ta: 'விசாகப்பட்டினம்', kn: 'ವಿಶಾಖಪಟ್ಟಣ',
-    ml: 'വിശാഖപട്ടണം', mr: 'विशाखापट्टणम', gu: 'વિશાખાપટ્ટનમ', bn: 'বিশাখাপত্তনম',
-    ur: 'وشاکھا پٹنم', pa: 'ਵਿਸ਼ਾਖਾਪਟਨਮ', or: 'ବିଶାଖାପାଟଣା', en: 'Visakhapatnam'
-  },
-  Hyderabad: {
-    te: 'హైదరాబాద్', hi: 'हैदराबाद', ta: 'ஹைதராபாத்', kn: 'ಹೈದರಾಬಾದ್',
-    ml: 'ഹൈദരാബാദ്', mr: 'हैदराबाद', gu: 'હૈદરાબાદ', bn: 'হায়দ্রাবাদ',
-    ur: 'حیدرآباد', pa: 'ਹੈਦਰਾਬਾਦ', or: 'ହାଇଦ୍ରାବାଦ', en: 'Hyderabad'
-  },
-  Vijayawada: {
-    te: 'విజయవాడ', hi: 'विजयवाड़ा', ta: 'விஜயவாடா', kn: 'ವಿಜಯವಾಡ',
-    ml: 'വിജയവാഡ', mr: 'विजयवाडा', gu: 'વિજયવાડા', bn: 'বিজয়ওয়াড়া',
-    ur: 'وجئےواڑہ', pa: 'ਵਿਜੇਵਾੜਾ', or: 'ବିଜୟୱାଡ଼ା', en: 'Vijayawada'
-  },
-  Chennai: {
-    te: 'చెన్నై', hi: 'चेन्नई', ta: 'சென்னை', kn: 'ಚೆನ್ನೈ',
-    ml: 'ചെന്നൈ', mr: 'चेन्नई', gu: 'ચેન્નઈ', bn: 'চেন্নাই',
-    ur: 'چنئی', pa: 'ਚੇਨਈ', or: 'ଚେନ୍ନାଇ', en: 'Chennai'
-  },
-  Bengaluru: {
-    te: 'బెంగళూరు', hi: 'बेंगलुरु', ta: 'பெங்களூரு', kn: 'ಬೆಂಗಳೂರು',
-    ml: 'ബംഗളൂരു', mr: 'बेंगळुरू', gu: 'બેંગલુરુ', bn: 'বেঙ্গালুরু',
-    ur: 'بنگلورو', pa: 'ਬੈਂਗਲੁਰੂ', or: 'ବେଙ୍ଗାଲୁରୁ', en: 'Bengaluru'
-  },
-  Tirupati: {
-    te: 'తిరుపతి', hi: 'तिरुपति', ta: 'திருப்பதி', kn: 'ತಿರುಪತಿ',
-    ml: 'തിരുപ്പതി', mr: 'तिरुपती', gu: 'તિરુપતિ', bn: 'তিরুপতি',
-    ur: 'تیروپتی', pa: 'ਤਿਰੁਪਤੀ', or: 'ତିରୁପତି', en: 'Tirupati'
-  },
-  Guntur: {
-    te: 'గుంటూరు', hi: 'गुंटूर', ta: 'குண்டூர்', kn: 'ಗುಂಟೂರು',
-    ml: 'ഗുണ്ടൂർ', mr: 'गुंटूर', gu: 'ગુંટૂર', bn: 'గుంటూర',
-    ur: 'گنٹور', pa: 'ਗੁੰਟੂਰ', or: 'ଗୁଣ୍ଟୁର', en: 'Guntur'
-  },
-  Rajahmundry: {
-    te: 'రాజమండ్రి', hi: 'राजमुंदरी', ta: 'ராஜமுந்திரி', kn: 'ರಾಜಮಂಡ್ರಿ',
-    ml: 'രാജമണ്ഡ്രി', mr: 'राजमुंद्री', gu: 'રાજામુંડરી', bn: 'রাজামুন্দ্রি',
-    ur: 'راجمندری', pa: 'ਰਾਜਮੁੰਦਰੀ', or: 'ରାଜମୁନ୍ଦ୍ରୀ', en: 'Rajahmundry'
-  },
-  Kakinada: {
-    te: 'కాకినాడ', hi: 'काकीनाडा', ta: 'காக்கிநாடா', kn: 'ಕಾಕಿನಾಡ',
-    ml: 'കാക്കിനട', mr: 'काकीनाडा', gu: 'કાકીનાડા', bn: 'কাকিনাডা',
-    ur: 'کاکیناڈا', pa: 'ਕਾਕੀਨਾਡਾ', or: 'କାକିନାଡ଼ା', en: 'Kakinada'
-  },
-  Nellore: {
-    te: 'నెల్లూరు', hi: 'नेल्लोर', ta: 'நெல்லூர்', kn: 'ನೆಲ್ಲೂರು',
-    ml: 'നെല്ലൂർ', mr: 'नेल्लोर', gu: 'નેલ્લોર', bn: 'নেলোর',
-    ur: 'نیلور', pa: 'ਨੇਲੋਰ', or: 'ନେଲୋର', en: 'Nellore'
-  },
-  Kurnool: {
-    te: 'కర్నూలు', hi: 'कुर्नूल', ta: 'கர்நூல்', kn: 'ಕರ್ನೂಲು',
-    ml: 'കർണൂൽ', mr: 'कुर्नूल', gu: 'કુર્નૂલ', bn: 'কুরনুল',
-    ur: 'کرنول', pa: 'ਕਰਨੂਲ', or: 'କର୍ନୁଲ', en: 'Kurnool'
-  },
-  Anantapur: {
-    te: 'అనంతపురం', hi: 'अनंतपुर', ta: 'அனந்தபூர்', kn: 'ಅನಂತಪುರ',
-    ml: 'അനന്തപൂർ', mr: 'अनंतपूर', gu: 'અનંતપુર', bn: 'অনন্তপুর',
-    ur: 'اننت پور', pa: 'ਅਨੰਤਪੁਰ', or: 'ଅନନ୍ତପୁର', en: 'Anantapur'
-  },
-  Warangal: {
-    te: 'వరంగల్', hi: 'वरंगल', ta: 'வரங்கல்', kn: 'ವರಂಗಲ್',
-    ml: 'വരംഗൽ', mr: 'वरंगल', gu: 'વરંગલ', bn: 'ওয়ারঙ্গল',
-    ur: 'وارنگل', pa: 'ਵਰੰਗਲ', or: 'ୱାରଙ୍ଗଲ', en: 'Warangal'
-  },
-  Karimnagar: {
-    te: 'కరీంనగర్', hi: 'करीमनगर', ta: 'கரீம்நகர்', kn: 'ಕರೀಂನಗರ',
-    ml: 'കരീംനഗർ', mr: 'करीमनगर', gu: 'કરીમનગર', bn: 'করিমনগর',
-    ur: 'کریم نگر', pa: 'ਕਰੀਮਨਗਰ', or: 'କରିମନଗର', en: 'Karimnagar'
-  },
-  Mumbai: {
-    te: 'ముంబై', hi: 'मुंबई', ta: 'மும்பை', kn: 'ಮುಂಬೈ',
-    ml: 'മുംബൈ', mr: 'मुंबई', gu: 'મુંબઈ', bn: 'মুম্বাই',
-    ur: 'ممبئی', pa: 'ਮੁੰਬਈ', or: 'ମୁମ୍ବାଇ', en: 'Mumbai'
-  },
-  Pune: {
-    te: 'పుణే', hi: 'पुणे', ta: 'புனே', kn: 'ಪುಣೆ',
-    ml: 'പുനെ', mr: 'पुणे', gu: 'પુણે', bn: 'পুনে',
-    ur: 'پونے', pa: 'ਪੁਣੇ', or: 'ପୁଣେ', en: 'Pune'
-  },
-  Delhi: {
-    te: 'ఢిల్లీ', hi: 'दिल्ली', ta: 'டெல்லி', kn: 'ದೆಹಲಿ',
-    ml: 'ഡൽഹി', mr: 'दिल्ली', gu: 'દિલ્હી', bn: 'দিল্লি',
-    ur: 'دہلی', pa: 'ਦਿੱਲੀ', or: 'ଦିଲ୍ଲୀ', en: 'Delhi'
-  },
-  Kolkata: {
-    te: 'కోల్‌కతా', hi: 'कोलकाता', ta: 'கொல்கத்தா', kn: 'ಕೋಲ್ಕತ್ತಾ',
-    ml: 'കൊൽക്കത്ത', mr: 'कोलकाता', gu: 'કોલકાતા', bn: 'কলকাতা',
-    ur: 'کولکتہ', pa: 'ਕੋਲਕਾਤਾ', or: 'କୋଲକାତା', en: 'Kolkata'
-  },
-  Kochi: {
-    te: 'కొచ్చి', hi: 'कोच्चि', ta: 'கொச்சி', kn: 'ಕೊಚ್ಚಿ',
-    ml: 'കൊച്ചി', mr: 'कोच्ची', gu: 'કોચી', bn: 'কোচি',
-    ur: 'کوچی', pa: 'ਕੋਚੀ', or: 'କୋଚି', en: 'Kochi'
-  },
-  Coimbatore: {
-    te: 'కోయంబత్తూర్', hi: 'कोयंबटूर', ta: 'கோயம்புத்தூர்', kn: 'ಕೊಯಮತ್ತೂರು',
-    ml: 'കോയമ്പത്തൂർ', mr: 'कोइम्बतूर', gu: 'કોઈમ્બતૂર', bn: 'কোয়েম্বাটুর',
-    ur: 'کوئمبتور', pa: 'ਕੋਇੰਬਟੂਰ', or: 'କୋଏମ୍ବାଟୋର', en: 'Coimbatore'
-  },
-  Madurai: {
-    te: 'మదురై', hi: 'मदुरै', ta: 'மதுரை', kn: 'ಮಧುರೈ',
-    ml: 'മധുര', mr: 'मदुराई', gu: 'મદુરાઈ', bn: 'মাদুরাই',
-    ur: 'مدورائی', pa: 'ਮਦੁਰਾਈ', or: 'ମଦୁରାଇ', en: 'Madurai'
-  },
-  Mysuru: {
-    te: 'మైసూరు', hi: 'मैसूरु', ta: 'மைசூரு', kn: 'ಮೈಸೂರು',
-    ml: 'മൈസൂരു', mr: 'मैसूरू', gu: 'મૈસુરુ', bn: 'মহীশূর',
-    ur: 'میسورو', pa: 'ਮੈਸੂਰੂ', or: 'ମୈସୁରୁ', en: 'Mysuru'
-  },
-};
 
 type Translations = Record<string, Record<string, string>>;
 
@@ -193,6 +67,7 @@ const translations: Translations = {
     acStatus: 'AC Type',
     busModel: 'Bus Model',
     maxPriceLabel: 'Max Price',
+    minPriceLabel: 'Min Price',
     minRatingLabel: 'Min Rating',
     volvo: 'Volvo Multi-Axle',
     bharatbenz: 'BharatBenz Ultra',
@@ -237,6 +112,49 @@ const translations: Translations = {
     pnrNumber: 'PNR Number',
     downloadTicket: 'Download Ticket',
 
+    showTheseInstead: 'Show these instead',
+    noDirectTitle: 'No direct buses — connecting journeys',
+    connectingVia: 'Connecting transfer options via major hubs',
+    watchAlertTitle: 'Price watch alert',
+    watchAlertCta: 'Watch price',
+    alertChannel: 'Notify me on',
+    alertChannelRequired: 'Choose at least one channel we can actually reach you on.',
+    alertEmail: 'Email',
+    alertWhatsapp: 'WhatsApp',
+    alertSms: 'SMS',
+    alertPhoneLabel: 'Mobile number',
+    alertPhoneNeeded: 'WhatsApp and SMS alerts need a verified mobile number. Please enter it before we create the alert.',
+    alertPhoneInvalid: 'Enter a valid mobile number with country code (e.g. +91 98765 43210).',
+    alertEmailInvalid: 'Enter a valid email address.',
+    alertTargetPrice: 'Alert me below (₹)',
+    alertCreate: 'Create alert',
+    alertSave: 'Save changes',
+    alertCancel: 'Cancel',
+    alertCancelled: 'Alert not created — without a delivery destination we could never reach you.',
+    alertCreated: 'Alert created. We will notify you at:',
+    alertMockNote: 'Demo build: alerts are stored on this device and notifications are simulated — no real WhatsApp/SMS/email is sent.',
+    myAlerts: 'My alerts',
+    alertsEmpty: 'No alerts yet. Search a route and tap "Watch price".',
+    alertDelete: 'Delete',
+    alertEdit: 'Edit',
+    alertDeliverTo: 'Delivers to',
+    profileTitle: 'Profile & settings',
+    profileSave: 'Save profile',
+    profileSaved: 'Profile updated.',
+    profileAddPhonePrompt: 'Add your mobile number so WhatsApp and SMS alerts can reach you. You can keep using the app without it.',
+    profileAddEmailPrompt: 'Add your email address so email alerts and booking receipts can reach you.',
+    profileLater: 'Later',
+    loginIdentifier: 'Email or mobile number',
+    selectSeatsCta: 'Select seats',
+    bookNow: 'Book Now',
+    aiRecommended: 'AI Recommended First',
+    forecastTitle: 'Smart Weekly Price Prediction',
+    forecastSub: 'Fare trends for',
+    maxSavings: 'Max savings',
+    upTo: 'Up to',
+    cheapestDay: 'Cheapest',
+    confidence: 'Confidence',
+    notificationsEmpty: 'No new notifications.',
     footerRights: 'All rights reserved. India’s multi-lingual smart bus tickets aggregator.',
   },
 
@@ -295,6 +213,7 @@ const translations: Translations = {
     acStatus: 'AC రకం',
     busModel: 'బస్సు మోడల్',
     maxPriceLabel: 'గరిష్ట ధర',
+    minPriceLabel: 'కనిష్ట ధర',
     minRatingLabel: 'కనిష్ట రేటింగ్',
     volvo: 'వోల్వో మల్టీ-యాక్సిల్',
     bharatbenz: 'భారత్ బెంజ్',
@@ -339,6 +258,49 @@ const translations: Translations = {
     pnrNumber: 'PNR నంబర్',
     downloadTicket: 'టికెట్ డౌన్‌లోడ్ చేయండి',
 
+    showTheseInstead: 'వీటిని చూపించు',
+    noDirectTitle: 'నేరుగా బస్సులు లేవు — కనెక్టింగ్ ప్రయాణాలు',
+    connectingVia: 'ప్రధాన హబ్‌ల ద్వారా కనెక్టింగ్ బదిలీ ఎంపికలు',
+    watchAlertTitle: 'ధర వాచ్ అలర్ట్',
+    watchAlertCta: 'ధరను గమనించు',
+    alertChannel: 'నాకు దీని ద్వారా తెలియజేయండి',
+    alertChannelRequired: 'మేము మిమ్మల్ని చేరుకోగల కనీసం ఒక ఛానెల్‌ను ఎంచుకోండి.',
+    alertEmail: 'ఇమెయిల్',
+    alertWhatsapp: 'వాట్సాప్',
+    alertSms: 'ఎస్ఎంఎస్',
+    alertPhoneLabel: 'మొబైల్ నంబర్',
+    alertPhoneNeeded: 'వాట్సాప్ మరియు ఎస్ఎంఎస్ అలర్ట్‌లకు మొబైల్ నంబర్ అవసరం. అలర్ట్ సృష్టించే ముందు దయచేసి దాన్ని నమోదు చేయండి.',
+    alertPhoneInvalid: 'దేశ కోడ్‌తో సరైన మొబైల్ నంబర్ నమోదు చేయండి (ఉదా: +91 98765 43210).',
+    alertEmailInvalid: 'సరైన ఇమెయిల్ చిరునామా నమోదు చేయండి.',
+    alertTargetPrice: 'ఈ ధర కంటే తక్కువైతే తెలియజేయండి (₹)',
+    alertCreate: 'అలర్ట్ సృష్టించు',
+    alertSave: 'మార్పులు సేవ్ చేయి',
+    alertCancel: 'రద్దు చేయి',
+    alertCancelled: 'అలర్ట్ సృష్టించలేదు — డెలివరీ చిరునామా లేకుండా మేము మిమ్మల్ని చేరుకోలేము.',
+    alertCreated: 'అలర్ట్ సృష్టించబడింది. మేము ఇక్కడ తెలియజేస్తాము:',
+    alertMockNote: 'డెమో బిల్డ్: అలర్ట్‌లు ఈ పరికరంలో మాత్రమే నిల్వ చేయబడతాయి, నోటిఫికేషన్లు అనుకరణ మాత్రమే — నిజమైన సందేశాలు పంపబడవు.',
+    myAlerts: 'నా అలర్ట్‌లు',
+    alertsEmpty: 'ఇంకా అలర్ట్‌లు లేవు. మార్గాన్ని వెతికి "ధరను గమనించు" నొక్కండి.',
+    alertDelete: 'తొలగించు',
+    alertEdit: 'సవరించు',
+    alertDeliverTo: 'దీనికి పంపబడుతుంది',
+    profileTitle: 'ప్రొఫైల్ & సెట్టింగ్‌లు',
+    profileSave: 'ప్రొఫైల్ సేవ్ చేయి',
+    profileSaved: 'ప్రొఫైల్ నవీకరించబడింది.',
+    profileAddPhonePrompt: 'వాట్సాప్ మరియు ఎస్ఎంఎస్ అలర్ట్‌లు అందేలా మీ మొబైల్ నంబర్ జోడించండి. అది లేకుండా కూడా యాప్ వాడవచ్చు.',
+    profileAddEmailPrompt: 'ఇమెయిల్ అలర్ట్‌లు మరియు బుకింగ్ రసీదులు అందేలా మీ ఇమెయిల్ చిరునామా జోడించండి.',
+    profileLater: 'తర్వాత',
+    loginIdentifier: 'ఇమెయిల్ లేదా మొబైల్ నంబర్',
+    selectSeatsCta: 'సీట్లు ఎంచుకోండి',
+    bookNow: 'ఇప్పుడే బుక్ చేయండి',
+    aiRecommended: 'AI సిఫార్సు మొదట',
+    forecastTitle: 'స్మార్ట్ వారపు ధర అంచనా',
+    forecastSub: 'ధర ధోరణులు',
+    maxSavings: 'గరిష్ట ఆదా',
+    upTo: 'వరకు',
+    cheapestDay: 'అత్యంత చౌక',
+    confidence: 'విశ్వసనీయత',
+    notificationsEmpty: 'కొత్త నోటిఫికేషన్లు లేవు.',
     footerRights: 'అన్ని హక్కులు ప్రత్యేకించబడ్డాయి. భారతదేశపు మల్టీలింగువల్ బస్సు టికెట్ యాప్.',
   },
 
@@ -397,6 +359,7 @@ const translations: Translations = {
     acStatus: 'एसी प्रकार',
     busModel: 'बस मॉडल',
     maxPriceLabel: 'अधिकतम किराया',
+    minPriceLabel: 'न्यूनतम किराया',
     minRatingLabel: 'न्यूनतम रेटिंग',
     volvo: 'वॉल्वो मल्टी-एक्सल',
     bharatbenz: 'भारतबेंज',
@@ -441,6 +404,49 @@ const translations: Translations = {
     pnrNumber: 'पीएनआर नंबर',
     downloadTicket: 'टिकट डाउनलोड करें',
 
+    showTheseInstead: 'ये दिखाएं',
+    noDirectTitle: 'कोई सीधी बस नहीं — कनेक्टिंग यात्राएं',
+    connectingVia: 'प्रमुख हब के माध्यम से कनेक्टिंग विकल्प',
+    watchAlertTitle: 'कीमत वॉच अलर्ट',
+    watchAlertCta: 'कीमत देखें',
+    alertChannel: 'मुझे यहां सूचित करें',
+    alertChannelRequired: 'कम से कम एक ऐसा चैनल चुनें जिस पर हम आप तक पहुंच सकें।',
+    alertEmail: 'ईमेल',
+    alertWhatsapp: 'व्हाट्सएप',
+    alertSms: 'एसएमएस',
+    alertPhoneLabel: 'मोबाइल नंबर',
+    alertPhoneNeeded: 'व्हाट्सएप और एसएमएस अलर्ट के लिए मोबाइल नंबर चाहिए। अलर्ट बनाने से पहले कृपया इसे दर्ज करें।',
+    alertPhoneInvalid: 'देश कोड सहित सही मोबाइल नंबर दर्ज करें (जैसे: +91 98765 43210)।',
+    alertEmailInvalid: 'सही ईमेल पता दर्ज करें।',
+    alertTargetPrice: 'इससे कम होने पर बताएं (₹)',
+    alertCreate: 'अलर्ट बनाएं',
+    alertSave: 'बदलाव सहेजें',
+    alertCancel: 'रद्द करें',
+    alertCancelled: 'अलर्ट नहीं बनाया — डिलीवरी पता के बिना हम आप तक नहीं पहुंच सकते।',
+    alertCreated: 'अलर्ट बन गया। हम यहां सूचित करेंगे:',
+    alertMockNote: 'डेमो बिल्ड: अलर्ट इसी डिवाइस पर सहेजे जाते हैं और सूचनाएं नकली हैं — कोई वास्तविक संदेश नहीं भेजा जाता।',
+    myAlerts: 'मेरे अलर्ट',
+    alertsEmpty: 'अभी कोई अलर्ट नहीं। रूट खोजें और "कीमत देखें" दबाएं।',
+    alertDelete: 'हटाएं',
+    alertEdit: 'संपादित करें',
+    alertDeliverTo: 'यहां भेजा जाएगा',
+    profileTitle: 'प्रोफ़ाइल और सेटिंग्स',
+    profileSave: 'प्रोफ़ाइल सहेजें',
+    profileSaved: 'प्रोफ़ाइल अपडेट हो गई।',
+    profileAddPhonePrompt: 'व्हाट्सएप और एसएमएस अलर्ट पाने के लिए मोबाइल नंबर जोड़ें। इसके बिना भी ऐप चलता रहेगा।',
+    profileAddEmailPrompt: 'ईमेल अलर्ट और बुकिंग रसीद पाने के लिए अपना ईमेल पता जोड़ें।',
+    profileLater: 'बाद में',
+    loginIdentifier: 'ईमेल या मोबाइल नंबर',
+    selectSeatsCta: 'सीटें चुनें',
+    bookNow: 'अभी बुक करें',
+    aiRecommended: 'AI अनुशंसित पहले',
+    forecastTitle: 'स्मार्ट साप्ताहिक मूल्य अनुमान',
+    forecastSub: 'किराया रुझान',
+    maxSavings: 'अधिकतम बचत',
+    upTo: 'तक',
+    cheapestDay: 'सबसे सस्ता',
+    confidence: 'विश्वास',
+    notificationsEmpty: 'कोई नई सूचना नहीं।',
     footerRights: 'सर्वाधिकार सुरक्षित। भारत का बहुभाषी स्मार्ट बस टिकट एग्रीगेटर।',
   },
 
@@ -499,6 +505,7 @@ const translations: Translations = {
     acStatus: 'ஏசி வகை',
     busModel: 'பேருந்து மாடல்',
     maxPriceLabel: 'அதிகபட்ச விலை',
+    minPriceLabel: 'குறைந்தபட்ச விலை',
     minRatingLabel: 'குறைந்தபட்ச ரேட்டிங்',
     volvo: 'வோல்வோ மல்டி ஆக்ஸில்',
     bharatbenz: 'பாரத்பென்ஸ்',
@@ -543,6 +550,49 @@ const translations: Translations = {
     pnrNumber: 'PNR எண்',
     downloadTicket: 'டிக்கெட் பதிவிறக்கவும்',
 
+    showTheseInstead: 'இவற்றைக் காட்டு',
+    noDirectTitle: 'நேரடி பேருந்து இல்லை — இணைப்புப் பயணங்கள்',
+    connectingVia: 'முக்கிய மையங்கள் வழியாக இணைப்பு விருப்பங்கள்',
+    watchAlertTitle: 'விலை கண்காணிப்பு எச்சரிக்கை',
+    watchAlertCta: 'விலையைக் கவனி',
+    alertChannel: 'இதில் எனக்குத் தெரிவிக்கவும்',
+    alertChannelRequired: 'நாங்கள் உங்களை அடையக்கூடிய குறைந்தது ஒரு வழியைத் தேர்ந்தெடுக்கவும்.',
+    alertEmail: 'மின்னஞ்சல்',
+    alertWhatsapp: 'வாட்ஸ்அப்',
+    alertSms: 'எஸ்எம்எஸ்',
+    alertPhoneLabel: 'கைபேசி எண்',
+    alertPhoneNeeded: 'வாட்ஸ்அப் மற்றும் எஸ்எம்எஸ் எச்சரிக்கைகளுக்கு கைபேசி எண் தேவை. உருவாக்கும் முன் அதை உள்ளிடவும்.',
+    alertPhoneInvalid: 'நாட்டுக் குறியீட்டுடன் சரியான கைபேசி எண்ணை உள்ளிடவும் (எ.கா: +91 98765 43210).',
+    alertEmailInvalid: 'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்.',
+    alertTargetPrice: 'இதற்குக் கீழே வந்தால் தெரிவி (₹)',
+    alertCreate: 'எச்சரிக்கையை உருவாக்கு',
+    alertSave: 'மாற்றங்களைச் சேமி',
+    alertCancel: 'ரத்து செய்',
+    alertCancelled: 'எச்சரிக்கை உருவாக்கப்படவில்லை — சேரும் முகவரி இல்லாமல் உங்களை அடைய முடியாது.',
+    alertCreated: 'எச்சரிக்கை உருவாக்கப்பட்டது. இங்கே தெரிவிப்போம்:',
+    alertMockNote: 'டெமோ பதிப்பு: எச்சரிக்கைகள் இந்தச் சாதனத்தில் சேமிக்கப்படும், அறிவிப்புகள் உருவகப்படுத்தப்பட்டவை — உண்மையான செய்திகள் அனுப்பப்படாது.',
+    myAlerts: 'என் எச்சரிக்கைகள்',
+    alertsEmpty: 'இதுவரை எச்சரிக்கை இல்லை. வழியைத் தேடி "விலையைக் கவனி" அழுத்தவும்.',
+    alertDelete: 'நீக்கு',
+    alertEdit: 'திருத்து',
+    alertDeliverTo: 'இங்கே அனுப்பப்படும்',
+    profileTitle: 'சுயவிவரம் & அமைப்புகள்',
+    profileSave: 'சுயவிவரத்தைச் சேமி',
+    profileSaved: 'சுயவிவரம் புதுப்பிக்கப்பட்டது.',
+    profileAddPhonePrompt: 'வாட்ஸ்அப் மற்றும் எஸ்எம்எஸ் எச்சரிக்கைகள் வர கைபேசி எண்ணைச் சேர்க்கவும். இல்லாமலும் செயலி இயங்கும்.',
+    profileAddEmailPrompt: 'மின்னஞ்சல் எச்சரிக்கைகள் மற்றும் முன்பதிவு ரசீதுகள் வர மின்னஞ்சல் முகவரியைச் சேர்க்கவும்.',
+    profileLater: 'பிறகு',
+    loginIdentifier: 'மின்னஞ்சல் அல்லது கைபேசி எண்',
+    selectSeatsCta: 'இருக்கைகளைத் தேர்வுசெய்',
+    bookNow: 'இப்போது புக் செய்',
+    aiRecommended: 'AI பரிந்துரை முதலில்',
+    forecastTitle: 'ஸ்மார்ட் வாராந்திர விலை கணிப்பு',
+    forecastSub: 'கட்டண போக்குகள்',
+    maxSavings: 'அதிகபட்ச சேமிப்பு',
+    upTo: 'வரை',
+    cheapestDay: 'மலிவானது',
+    confidence: 'நம்பகத்தன்மை',
+    notificationsEmpty: 'புதிய அறிவிப்புகள் இல்லை.',
     footerRights: 'அனைத்து உரிமைகளும் பாதுகாக்கப்பட்டவை.',
   },
 
@@ -601,6 +651,7 @@ const translations: Translations = {
     acStatus: 'AC ಮಾದರಿ',
     busModel: 'ಬಸ್ ಮಾಡೆಲ್',
     maxPriceLabel: 'ಗರಿಷ್ಠ ದರ',
+    minPriceLabel: 'ಕನಿಷ್ಠ ದರ',
     minRatingLabel: 'ಕನಿಷ್ಠ ರೇಟಿಂಗ್',
     volvo: 'ವೋಲ್ವೋ ಮಲ್ಟಿ-ಆಕ್ಸಲ್',
     bharatbenz: 'ಭಾರತ್ ಬೆಂಝ್',
@@ -645,6 +696,49 @@ const translations: Translations = {
     pnrNumber: 'PNR ಸಂಖ್ಯೆ',
     downloadTicket: 'ಟಿಕೆಟ್ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ',
 
+    showTheseInstead: 'ಇವುಗಳನ್ನು ತೋರಿಸಿ',
+    noDirectTitle: 'ನೇರ ಬಸ್ ಇಲ್ಲ — ಸಂಪರ್ಕ ಪ್ರಯಾಣಗಳು',
+    connectingVia: 'ಪ್ರಮುಖ ಹಬ್‌ಗಳ ಮೂಲಕ ಸಂಪರ್ಕ ಆಯ್ಕೆಗಳು',
+    watchAlertTitle: 'ಬೆಲೆ ವಾಚ್ ಎಚ್ಚರಿಕೆ',
+    watchAlertCta: 'ಬೆಲೆ ಗಮನಿಸಿ',
+    alertChannel: 'ಇದರ ಮೂಲಕ ತಿಳಿಸಿ',
+    alertChannelRequired: 'ನಾವು ನಿಮ್ಮನ್ನು ತಲುಪಬಹುದಾದ ಕನಿಷ್ಠ ಒಂದು ಚಾನೆಲ್ ಆಯ್ಕೆಮಾಡಿ.',
+    alertEmail: 'ಇಮೇಲ್',
+    alertWhatsapp: 'ವಾಟ್ಸಾಪ್',
+    alertSms: 'ಎಸ್ಎಂಎಸ್',
+    alertPhoneLabel: 'ಮೊಬೈಲ್ ಸಂಖ್ಯೆ',
+    alertPhoneNeeded: 'ವಾಟ್ಸಾಪ್ ಮತ್ತು ಎಸ್ಎಂಎಸ್ ಎಚ್ಚರಿಕೆಗಳಿಗೆ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಬೇಕು. ರಚಿಸುವ ಮೊದಲು ಅದನ್ನು ನಮೂದಿಸಿ.',
+    alertPhoneInvalid: 'ದೇಶ ಕೋಡ್‌ನೊಂದಿಗೆ ಸರಿಯಾದ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ (ಉದಾ: +91 98765 43210).',
+    alertEmailInvalid: 'ಸರಿಯಾದ ಇಮೇಲ್ ವಿಳಾಸ ನಮೂದಿಸಿ.',
+    alertTargetPrice: 'ಇದಕ್ಕಿಂತ ಕಡಿಮೆಯಾದರೆ ತಿಳಿಸಿ (₹)',
+    alertCreate: 'ಎಚ್ಚರಿಕೆ ರಚಿಸಿ',
+    alertSave: 'ಬದಲಾವಣೆ ಉಳಿಸಿ',
+    alertCancel: 'ರದ್ದುಗೊಳಿಸಿ',
+    alertCancelled: 'ಎಚ್ಚರಿಕೆ ರಚಿಸಿಲ್ಲ — ತಲುಪಿಸುವ ವಿಳಾಸವಿಲ್ಲದೆ ನಿಮ್ಮನ್ನು ತಲುಪಲಾಗದು.',
+    alertCreated: 'ಎಚ್ಚರಿಕೆ ರಚಿಸಲಾಗಿದೆ. ಇಲ್ಲಿ ತಿಳಿಸುತ್ತೇವೆ:',
+    alertMockNote: 'ಡೆಮೋ ಬಿಲ್ಡ್: ಎಚ್ಚರಿಕೆಗಳು ಈ ಸಾಧನದಲ್ಲಿ ಸಂಗ್ರಹವಾಗುತ್ತವೆ, ಅಧಿಸೂಚನೆಗಳು ಅನುಕರಣೆ ಮಾತ್ರ — ನಿಜವಾದ ಸಂದೇಶ ಕಳುಹಿಸುವುದಿಲ್ಲ.',
+    myAlerts: 'ನನ್ನ ಎಚ್ಚರಿಕೆಗಳು',
+    alertsEmpty: 'ಇನ್ನೂ ಎಚ್ಚರಿಕೆಗಳಿಲ್ಲ. ಮಾರ್ಗ ಹುಡುಕಿ "ಬೆಲೆ ಗಮನಿಸಿ" ಒತ್ತಿ.',
+    alertDelete: 'ಅಳಿಸಿ',
+    alertEdit: 'ಸಂಪಾದಿಸಿ',
+    alertDeliverTo: 'ಇಲ್ಲಿಗೆ ಕಳುಹಿಸಲಾಗುತ್ತದೆ',
+    profileTitle: 'ಪ್ರೊಫೈಲ್ ಮತ್ತು ಸೆಟ್ಟಿಂಗ್‌ಗಳು',
+    profileSave: 'ಪ್ರೊಫೈಲ್ ಉಳಿಸಿ',
+    profileSaved: 'ಪ್ರೊಫೈಲ್ ನವೀಕರಿಸಲಾಗಿದೆ.',
+    profileAddPhonePrompt: 'ವಾಟ್ಸಾಪ್ ಮತ್ತು ಎಸ್ಎಂಎಸ್ ಎಚ್ಚರಿಕೆಗಳಿಗಾಗಿ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಸೇರಿಸಿ. ಇಲ್ಲದೆಯೂ ಆ್ಯಪ್ ಬಳಸಬಹುದು.',
+    profileAddEmailPrompt: 'ಇಮೇಲ್ ಎಚ್ಚರಿಕೆ ಮತ್ತು ಬುಕಿಂಗ್ ರಸೀದಿಗಾಗಿ ಇಮೇಲ್ ವಿಳಾಸ ಸೇರಿಸಿ.',
+    profileLater: 'ನಂತರ',
+    loginIdentifier: 'ಇಮೇಲ್ ಅಥವಾ ಮೊಬೈಲ್ ಸಂಖ್ಯೆ',
+    selectSeatsCta: 'ಸೀಟುಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ',
+    bookNow: 'ಈಗ ಬುಕ್ ಮಾಡಿ',
+    aiRecommended: 'AI ಶಿಫಾರಸು ಮೊದಲು',
+    forecastTitle: 'ಸ್ಮಾರ್ಟ್ ಸಾಪ್ತಾಹಿಕ ಬೆಲೆ ಮುನ್ಸೂಚನೆ',
+    forecastSub: 'ದರ ಪ್ರವೃತ್ತಿಗಳು',
+    maxSavings: 'ಗರಿಷ್ಠ ಉಳಿತಾಯ',
+    upTo: 'ವರೆಗೆ',
+    cheapestDay: 'ಅಗ್ಗದ',
+    confidence: 'ವಿಶ್ವಾಸ',
+    notificationsEmpty: 'ಹೊಸ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ.',
     footerRights: 'ಎಲ್ಲಾ ಹಕ್ಕುಗಳನ್ನು ಕಾಯ್ದಿರಿಸಲಾಗಿದೆ.',
   },
 
@@ -703,6 +797,7 @@ const translations: Translations = {
     acStatus: 'AC ടൈപ്പ്',
     busModel: 'ബസ് മോഡൽ',
     maxPriceLabel: 'പരമാവധി നിരക്ക്',
+    minPriceLabel: 'കുറഞ്ഞ നിരക്ക്',
     minRatingLabel: 'കുറഞ്ഞ റേറ്റിംഗ്',
     volvo: 'വോൾവോ മൾട്ടി-ആക്‌സൽ',
     bharatbenz: 'ഭാരത് ബെൻസ്',
@@ -747,6 +842,49 @@ const translations: Translations = {
     pnrNumber: 'PNR നമ്പർ',
     downloadTicket: 'ടിക്കറ്റ് ഡൗൺലോഡ് ചെയ്യുക',
 
+    showTheseInstead: 'ഇവ കാണിക്കുക',
+    noDirectTitle: 'നേരിട്ടുള്ള ബസുകൾ ഇല്ല — കണക്റ്റിംഗ് യാത്രകൾ',
+    connectingVia: 'പ്രധാന ഹബ്ബുകൾ വഴിയുള്ള കണക്റ്റിംഗ് ഓപ്ഷനുകൾ',
+    watchAlertTitle: 'വില വാച്ച് അലേർട്ട്',
+    watchAlertCta: 'വില നിരീക്ഷിക്കുക',
+    alertChannel: 'ഇതിൽ അറിയിക്കുക',
+    alertChannelRequired: 'ഞങ്ങൾക്ക് നിങ്ങളിലേക്ക് എത്താൻ കഴിയുന്ന ഒരു ചാനലെങ്കിലും തിരഞ്ഞെടുക്കുക.',
+    alertEmail: 'ഇമെയിൽ',
+    alertWhatsapp: 'വാട്ട്‌സ്ആപ്പ്',
+    alertSms: 'എസ്എംഎസ്',
+    alertPhoneLabel: 'മൊബൈൽ നമ്പർ',
+    alertPhoneNeeded: 'വാട്ട്‌സ്ആപ്പ്, എസ്എംഎസ് അലേർട്ടുകൾക്ക് മൊബൈൽ നമ്പർ വേണം. സൃഷ്ടിക്കുന്നതിന് മുമ്പ് അത് നൽകുക.',
+    alertPhoneInvalid: 'രാജ്യ കോഡ് സഹിതം ശരിയായ മൊബൈൽ നമ്പർ നൽകുക (ഉദാ: +91 98765 43210).',
+    alertEmailInvalid: 'ശരിയായ ഇമെയിൽ വിലാസം നൽകുക.',
+    alertTargetPrice: 'ഇതിലും കുറഞ്ഞാൽ അറിയിക്കുക (₹)',
+    alertCreate: 'അലേർട്ട് സൃഷ്ടിക്കുക',
+    alertSave: 'മാറ്റങ്ങൾ സംരക്ഷിക്കുക',
+    alertCancel: 'റദ്ദാക്കുക',
+    alertCancelled: 'അലേർട്ട് സൃഷ്ടിച്ചില്ല — ഡെലിവറി വിലാസമില്ലാതെ നിങ്ങളിലേക്ക് എത്താനാവില്ല.',
+    alertCreated: 'അലേർട്ട് സൃഷ്ടിച്ചു. ഇവിടെ അറിയിക്കും:',
+    alertMockNote: 'ഡെമോ ബിൽഡ്: അലേർട്ടുകൾ ഈ ഉപകരണത്തിൽ സൂക്ഷിക്കുന്നു, അറിയിപ്പുകൾ അനുകരണം മാത്രം — യഥാർത്ഥ സന്ദേശം അയയ്ക്കില്ല.',
+    myAlerts: 'എന്റെ അലേർട്ടുകൾ',
+    alertsEmpty: 'ഇതുവരെ അലേർട്ടുകൾ ഇല്ല. റൂട്ട് തിരഞ്ഞ് "വില നിരീക്ഷിക്കുക" അമർത്തുക.',
+    alertDelete: 'ഇല്ലാതാക്കുക',
+    alertEdit: 'എഡിറ്റ് ചെയ്യുക',
+    alertDeliverTo: 'ഇവിടേക്ക് അയയ്ക്കും',
+    profileTitle: 'പ്രൊഫൈൽ & ക്രമീകരണങ്ങൾ',
+    profileSave: 'പ്രൊഫൈൽ സംരക്ഷിക്കുക',
+    profileSaved: 'പ്രൊഫൈൽ അപ്ഡേറ്റ് ചെയ്തു.',
+    profileAddPhonePrompt: 'വാട്ട്‌സ്ആപ്പ്, എസ്എംഎസ് അലേർട്ടുകൾക്കായി മൊബൈൽ നമ്പർ ചേർക്കുക. ഇല്ലാതെയും ആപ്പ് ഉപയോഗിക്കാം.',
+    profileAddEmailPrompt: 'ഇമെയിൽ അലേർട്ടുകൾക്കും ബുക്കിംഗ് രസീതുകൾക്കുമായി ഇമെയിൽ വിലാസം ചേർക്കുക.',
+    profileLater: 'പിന്നീട്',
+    loginIdentifier: 'ഇമെയിൽ അല്ലെങ്കിൽ മൊബൈൽ നമ്പർ',
+    selectSeatsCta: 'സീറ്റുകൾ തിരഞ്ഞെടുക്കുക',
+    bookNow: 'ഇപ്പോൾ ബുക്ക് ചെയ്യുക',
+    aiRecommended: 'AI ശുപാർശ ആദ്യം',
+    forecastTitle: 'സ്മാർട്ട് പ്രതിവാര വില പ്രവചനം',
+    forecastSub: 'നിരക്ക് പ്രവണതകൾ',
+    maxSavings: 'പരമാവധി ലാഭം',
+    upTo: 'വരെ',
+    cheapestDay: 'ഏറ്റവും വില കുറഞ്ഞ',
+    confidence: 'വിശ്വാസ്യത',
+    notificationsEmpty: 'പുതിയ അറിയിപ്പുകൾ ഇല്ല.',
     footerRights: 'എല്ലാ അവകാശങ്ങളും സംരക്ഷിതം.',
   },
 
@@ -805,6 +943,7 @@ const translations: Translations = {
     acStatus: 'AC प्रकार',
     busModel: 'बस मॉडेल',
     maxPriceLabel: 'जास्तीत जास्त दर',
+    minPriceLabel: 'किमान दर',
     minRatingLabel: 'किमान रेटिंग',
     volvo: 'वॉल्वो मल्टी-अ‍ॅक्सल',
     bharatbenz: 'भारतबेंझ',
@@ -849,6 +988,49 @@ const translations: Translations = {
     pnrNumber: 'PNR नंबर',
     downloadTicket: 'तिकीट डाउनलोड करा',
 
+    showTheseInstead: 'हे दाखवा',
+    noDirectTitle: 'थेट बस नाही — कनेक्टिंग प्रवास',
+    connectingVia: 'प्रमुख हबमार्गे कनेक्टिंग पर्याय',
+    watchAlertTitle: 'किंमत वॉच अलर्ट',
+    watchAlertCta: 'किंमत पहा',
+    alertChannel: 'मला येथे कळवा',
+    alertChannelRequired: 'आम्ही तुमच्यापर्यंत पोहोचू शकू असा किमान एक चॅनेल निवडा.',
+    alertEmail: 'ईमेल',
+    alertWhatsapp: 'व्हॉट्सअ‍ॅप',
+    alertSms: 'एसएमएस',
+    alertPhoneLabel: 'मोबाइल नंबर',
+    alertPhoneNeeded: 'व्हॉट्सअ‍ॅप आणि एसएमएस अलर्टसाठी मोबाइल नंबर आवश्यक आहे. तयार करण्यापूर्वी तो प्रविष्ट करा.',
+    alertPhoneInvalid: 'देश कोडसह वैध मोबाइल नंबर प्रविष्ट करा (उदा: +91 98765 43210).',
+    alertEmailInvalid: 'वैध ईमेल पत्ता प्रविष्ट करा.',
+    alertTargetPrice: 'यापेक्षा कमी झाल्यास कळवा (₹)',
+    alertCreate: 'अलर्ट तयार करा',
+    alertSave: 'बदल जतन करा',
+    alertCancel: 'रद्द करा',
+    alertCancelled: 'अलर्ट तयार केला नाही — वितरण पत्त्याशिवाय आम्ही तुमच्यापर्यंत पोहोचू शकत नाही.',
+    alertCreated: 'अलर्ट तयार झाला. आम्ही येथे कळवू:',
+    alertMockNote: 'डेमो बिल्ड: अलर्ट याच डिव्हाइसवर साठवले जातात आणि सूचना बनावट आहेत — खरा संदेश पाठवला जात नाही.',
+    myAlerts: 'माझे अलर्ट',
+    alertsEmpty: 'अजून अलर्ट नाहीत. मार्ग शोधा आणि "किंमत पहा" दाबा.',
+    alertDelete: 'हटवा',
+    alertEdit: 'संपादित करा',
+    alertDeliverTo: 'येथे पाठवले जाईल',
+    profileTitle: 'प्रोफाइल आणि सेटिंग्ज',
+    profileSave: 'प्रोफाइल जतन करा',
+    profileSaved: 'प्रोफाइल अद्ययावत झाली.',
+    profileAddPhonePrompt: 'व्हॉट्सअ‍ॅप आणि एसएमएस अलर्टसाठी मोबाइल नंबर जोडा. त्याशिवायही अ‍ॅप वापरता येईल.',
+    profileAddEmailPrompt: 'ईमेल अलर्ट आणि बुकिंग पावतीसाठी ईमेल पत्ता जोडा.',
+    profileLater: 'नंतर',
+    loginIdentifier: 'ईमेल किंवा मोबाइल नंबर',
+    selectSeatsCta: 'जागा निवडा',
+    bookNow: 'आता बुक करा',
+    aiRecommended: 'AI शिफारस प्रथम',
+    forecastTitle: 'स्मार्ट साप्ताहिक किंमत अंदाज',
+    forecastSub: 'भाडे कल',
+    maxSavings: 'जास्तीत जास्त बचत',
+    upTo: 'पर्यंत',
+    cheapestDay: 'सर्वात स्वस्त',
+    confidence: 'विश्वास',
+    notificationsEmpty: 'नवीन सूचना नाहीत.',
     footerRights: 'सर्व हक्क राखीव.',
   },
 
@@ -907,6 +1089,7 @@ const translations: Translations = {
     acStatus: 'AC પ્રકાર',
     busModel: 'બસ મોડેલ',
     maxPriceLabel: 'મહત્તમ ભાડું',
+    minPriceLabel: 'ન્યૂનતમ ભાડું',
     minRatingLabel: 'ન્યૂનતમ રેટિંગ',
     volvo: 'વોલ્વો મલ્ટી-એક્સલ',
     bharatbenz: 'ભારતબેન્ઝ',
@@ -951,6 +1134,49 @@ const translations: Translations = {
     pnrNumber: 'PNR નંબર',
     downloadTicket: 'ટિકિટ ડાઉનલોડ કરો',
 
+    showTheseInstead: 'આ બતાવો',
+    noDirectTitle: 'સીધી બસ નથી — કનેક્ટિંગ મુસાફરી',
+    connectingVia: 'મુખ્ય હબ મારફતે કનેક્ટિંગ વિકલ્પો',
+    watchAlertTitle: 'ભાવ વોચ એલર્ટ',
+    watchAlertCta: 'ભાવ જુઓ',
+    alertChannel: 'મને અહીં જાણ કરો',
+    alertChannelRequired: 'અમે તમારા સુધી પહોંચી શકીએ તેવી ઓછામાં ઓછી એક ચેનલ પસંદ કરો.',
+    alertEmail: 'ઈમેલ',
+    alertWhatsapp: 'વોટ્સએપ',
+    alertSms: 'એસએમએસ',
+    alertPhoneLabel: 'મોબાઈલ નંબર',
+    alertPhoneNeeded: 'વોટ્સએપ અને એસએમએસ એલર્ટ માટે મોબાઈલ નંબર જરૂરી છે. બનાવતા પહેલા તે દાખલ કરો.',
+    alertPhoneInvalid: 'દેશ કોડ સાથે માન્ય મોબાઈલ નંબર દાખલ કરો (ઉદા: +91 98765 43210).',
+    alertEmailInvalid: 'માન્ય ઈમેલ સરનામું દાખલ કરો.',
+    alertTargetPrice: 'આનાથી ઓછું થાય તો જણાવો (₹)',
+    alertCreate: 'એલર્ટ બનાવો',
+    alertSave: 'ફેરફારો સાચવો',
+    alertCancel: 'રદ કરો',
+    alertCancelled: 'એલર્ટ બનાવ્યું નથી — ડિલિવરી સરનામા વિના અમે તમારા સુધી પહોંચી શકતા નથી.',
+    alertCreated: 'એલર્ટ બન્યું. અમે અહીં જાણ કરીશું:',
+    alertMockNote: 'ડેમો બિલ્ડ: એલર્ટ આ ડિવાઇસ પર સંગ્રહાય છે અને સૂચનાઓ સિમ્યુલેટેડ છે — વાસ્તવિક સંદેશ મોકલાતો નથી.',
+    myAlerts: 'મારા એલર્ટ',
+    alertsEmpty: 'હજી કોઈ એલર્ટ નથી. રૂટ શોધો અને "ભાવ જુઓ" દબાવો.',
+    alertDelete: 'કાઢી નાખો',
+    alertEdit: 'સંપાદિત કરો',
+    alertDeliverTo: 'અહીં મોકલાશે',
+    profileTitle: 'પ્રોફાઇલ અને સેટિંગ્સ',
+    profileSave: 'પ્રોફાઇલ સાચવો',
+    profileSaved: 'પ્રોફાઇલ અપડેટ થઈ.',
+    profileAddPhonePrompt: 'વોટ્સએપ અને એસએમએસ એલર્ટ માટે મોબાઈલ નંબર ઉમેરો. તેના વિના પણ એપ વાપરી શકાય.',
+    profileAddEmailPrompt: 'ઈમેલ એલર્ટ અને બુકિંગ રસીદ માટે ઈમેલ સરનામું ઉમેરો.',
+    profileLater: 'પછી',
+    loginIdentifier: 'ઈમેલ અથવા મોબાઈલ નંબર',
+    selectSeatsCta: 'સીટ પસંદ કરો',
+    bookNow: 'હમણાં બુક કરો',
+    aiRecommended: 'AI ભલામણ પ્રથમ',
+    forecastTitle: 'સ્માર્ટ સાપ્તાહિક ભાવ અનુમાન',
+    forecastSub: 'ભાડા વલણો',
+    maxSavings: 'મહત્તમ બચત',
+    upTo: 'સુધી',
+    cheapestDay: 'સૌથી સસ્તું',
+    confidence: 'વિશ્વાસ',
+    notificationsEmpty: 'નવી સૂચનાઓ નથી.',
     footerRights: 'તમામ હકો અનામત છે.',
   },
 
@@ -1009,6 +1235,7 @@ const translations: Translations = {
     acStatus: 'এসি ধরন',
     busModel: 'বাসের মডেল',
     maxPriceLabel: 'সর্বোচ্চ ভাড়া',
+    minPriceLabel: 'সর্বনিম্ন ভাড়া',
     minRatingLabel: 'সর্বনিম্ন রেটিং',
     volvo: 'ভোলভ মাল্টি-অ্যাক্সেল',
     bharatbenz: 'ভারতবেঞ্জ',
@@ -1053,6 +1280,49 @@ const translations: Translations = {
     pnrNumber: 'PNR নম্বর',
     downloadTicket: 'টিকিট ডাউনলোড করুন',
 
+    showTheseInstead: 'এগুলি দেখান',
+    noDirectTitle: 'সরাসরি বাস নেই — সংযোগকারী যাত্রা',
+    connectingVia: 'প্রধান হাব হয়ে সংযোগ বিকল্প',
+    watchAlertTitle: 'দাম ওয়াচ অ্যালার্ট',
+    watchAlertCta: 'দাম নজরে রাখুন',
+    alertChannel: 'আমাকে জানান',
+    alertChannelRequired: 'অন্তত একটি চ্যানেল বাছুন যেখানে আমরা আপনার কাছে পৌঁছাতে পারি।',
+    alertEmail: 'ইমেইল',
+    alertWhatsapp: 'হোয়াটসঅ্যাপ',
+    alertSms: 'এসএমএস',
+    alertPhoneLabel: 'মোবাইল নম্বর',
+    alertPhoneNeeded: 'হোয়াটসঅ্যাপ ও এসএমএস অ্যালার্টের জন্য মোবাইল নম্বর দরকার। তৈরির আগে সেটি দিন।',
+    alertPhoneInvalid: 'দেশের কোডসহ সঠিক মোবাইল নম্বর দিন (যেমন: +91 98765 43210)।',
+    alertEmailInvalid: 'সঠিক ইমেইল ঠিকানা দিন।',
+    alertTargetPrice: 'এর নিচে নামলে জানান (₹)',
+    alertCreate: 'অ্যালার্ট তৈরি করুন',
+    alertSave: 'পরিবর্তন সংরক্ষণ করুন',
+    alertCancel: 'বাতিল',
+    alertCancelled: 'অ্যালার্ট তৈরি হয়নি — গন্তব্য ঠিকানা ছাড়া আমরা আপনার কাছে পৌঁছাতে পারি না।',
+    alertCreated: 'অ্যালার্ট তৈরি হয়েছে। আমরা এখানে জানাব:',
+    alertMockNote: 'ডেমো বিল্ড: অ্যালার্ট এই ডিভাইসে সংরক্ষিত হয় এবং বিজ্ঞপ্তি অনুকরণ মাত্র — আসল বার্তা পাঠানো হয় না।',
+    myAlerts: 'আমার অ্যালার্ট',
+    alertsEmpty: 'এখনও কোনো অ্যালার্ট নেই। রুট খুঁজে "দাম নজরে রাখুন" চাপুন।',
+    alertDelete: 'মুছুন',
+    alertEdit: 'সম্পাদনা',
+    alertDeliverTo: 'এখানে পাঠানো হবে',
+    profileTitle: 'প্রোফাইল ও সেটিংস',
+    profileSave: 'প্রোফাইল সংরক্ষণ',
+    profileSaved: 'প্রোফাইল আপডেট হয়েছে।',
+    profileAddPhonePrompt: 'হোয়াটসঅ্যাপ ও এসএমএস অ্যালার্টের জন্য মোবাইল নম্বর যোগ করুন। ছাড়াও অ্যাপ ব্যবহার করা যাবে।',
+    profileAddEmailPrompt: 'ইমেইল অ্যালার্ট ও বুকিং রসিদের জন্য ইমেইল ঠিকানা যোগ করুন।',
+    profileLater: 'পরে',
+    loginIdentifier: 'ইমেইল বা মোবাইল নম্বর',
+    selectSeatsCta: 'আসন নির্বাচন করুন',
+    bookNow: 'এখনই বুক করুন',
+    aiRecommended: 'AI প্রস্তাবিত প্রথমে',
+    forecastTitle: 'স্মার্ট সাপ্তাহিক দাম পূর্বাভাস',
+    forecastSub: 'ভাড়ার প্রবণতা',
+    maxSavings: 'সর্বোচ্চ সাশ্রয়',
+    upTo: 'পর্যন্ত',
+    cheapestDay: 'সবচেয়ে সস্তা',
+    confidence: 'আস্থা',
+    notificationsEmpty: 'নতুন বিজ্ঞপ্তি নেই।',
     footerRights: 'সর্বস্বত্ব সংরক্ষিত।',
   },
 
@@ -1111,6 +1381,7 @@ const translations: Translations = {
     acStatus: 'AC قسم',
     busModel: 'بس ماڈل',
     maxPriceLabel: 'زیادہ سے زیادہ کرایہ',
+    minPriceLabel: 'کم سے کم کرایہ',
     minRatingLabel: 'کم از کم ریٹنگ',
     volvo: 'وولوو ملٹی ایکسل',
     bharatbenz: 'بھارت بینز',
@@ -1155,6 +1426,49 @@ const translations: Translations = {
     pnrNumber: 'PNR نمبر',
     downloadTicket: 'ٹکٹ ڈاؤن لوڈ کریں',
 
+    showTheseInstead: 'یہ دکھائیں',
+    noDirectTitle: 'کوئی براہ راست بس نہیں — کنیکٹنگ سفر',
+    connectingVia: 'بڑے مراکز کے ذریعے کنیکٹنگ اختیارات',
+    watchAlertTitle: 'قیمت واچ الرٹ',
+    watchAlertCta: 'قیمت دیکھیں',
+    alertChannel: 'مجھے یہاں مطلع کریں',
+    alertChannelRequired: 'کم از کم ایک ایسا ذریعہ منتخب کریں جس پر ہم آپ تک پہنچ سکیں۔',
+    alertEmail: 'ای میل',
+    alertWhatsapp: 'واٹس ایپ',
+    alertSms: 'ایس ایم ایس',
+    alertPhoneLabel: 'موبائل نمبر',
+    alertPhoneNeeded: 'واٹس ایپ اور ایس ایم ایس الرٹ کے لیے موبائل نمبر درکار ہے۔ بنانے سے پہلے اسے درج کریں۔',
+    alertPhoneInvalid: 'ملکی کوڈ کے ساتھ درست موبائل نمبر درج کریں (مثلاً: +91 98765 43210)۔',
+    alertEmailInvalid: 'درست ای میل ایڈریس درج کریں۔',
+    alertTargetPrice: 'اس سے کم ہونے پر بتائیں (₹)',
+    alertCreate: 'الرٹ بنائیں',
+    alertSave: 'تبدیلیاں محفوظ کریں',
+    alertCancel: 'منسوخ کریں',
+    alertCancelled: 'الرٹ نہیں بنایا — ترسیل کے پتے کے بغیر ہم آپ تک نہیں پہنچ سکتے۔',
+    alertCreated: 'الرٹ بن گیا۔ ہم یہاں مطلع کریں گے:',
+    alertMockNote: 'ڈیمو بلڈ: الرٹ اسی ڈیوائس پر محفوظ ہوتے ہیں اور اطلاعات نقلی ہیں — حقیقی پیغام نہیں بھیجا جاتا۔',
+    myAlerts: 'میرے الرٹس',
+    alertsEmpty: 'ابھی کوئی الرٹ نہیں۔ روٹ تلاش کریں اور "قیمت دیکھیں" دبائیں۔',
+    alertDelete: 'حذف کریں',
+    alertEdit: 'ترمیم کریں',
+    alertDeliverTo: 'یہاں بھیجا جائے گا',
+    profileTitle: 'پروفائل اور ترتیبات',
+    profileSave: 'پروفائل محفوظ کریں',
+    profileSaved: 'پروفائل اپ ڈیٹ ہو گئی۔',
+    profileAddPhonePrompt: 'واٹس ایپ اور ایس ایم ایس الرٹ کے لیے موبائل نمبر شامل کریں۔ اس کے بغیر بھی ایپ چلتی رہے گی۔',
+    profileAddEmailPrompt: 'ای میل الرٹ اور بکنگ رسید کے لیے ای میل ایڈریس شامل کریں۔',
+    profileLater: 'بعد میں',
+    loginIdentifier: 'ای میل یا موبائل نمبر',
+    selectSeatsCta: 'سیٹیں منتخب کریں',
+    bookNow: 'ابھی بک کریں',
+    aiRecommended: 'AI تجویز کردہ پہلے',
+    forecastTitle: 'اسمارٹ ہفتہ وار قیمت پیشگوئی',
+    forecastSub: 'کرایہ رجحانات',
+    maxSavings: 'زیادہ سے زیادہ بچت',
+    upTo: 'تک',
+    cheapestDay: 'سب سے سستا',
+    confidence: 'اعتماد',
+    notificationsEmpty: 'کوئی نئی اطلاع نہیں۔',
     footerRights: 'جملہ حقوق محفوظ ہیں۔',
   },
 
@@ -1213,6 +1527,7 @@ const translations: Translations = {
     acStatus: 'AC ਕਿਸਮ',
     busModel: 'ਬੱਸ ਮਾਡਲ',
     maxPriceLabel: 'ਵੱਧ ਤੋਂ ਵੱਧ ਕਿਰਾਇਆ',
+    minPriceLabel: 'ਘੱਟੋ-ਘੱਟ ਕਿਰਾਇਆ',
     minRatingLabel: 'ਘੱਟੋ-ਘੱਟ ਰੇਟਿੰਗ',
     volvo: 'ਵੋਲਵੋ ਮਲਟੀ-ਐਕਸਲ',
     bharatbenz: 'ਭਾਰਤਬੈਂਜ਼',
@@ -1257,6 +1572,49 @@ const translations: Translations = {
     pnrNumber: 'PNR ਨੰਬਰ',
     downloadTicket: 'ਟਿਕਟ ਡਾਊਨਲੋਡ ਕਰੋ',
 
+    showTheseInstead: 'ਇਹ ਦਿਖਾਓ',
+    noDirectTitle: 'ਕੋਈ ਸਿੱਧੀ ਬੱਸ ਨਹੀਂ — ਕਨੈਕਟਿੰਗ ਯਾਤਰਾਵਾਂ',
+    connectingVia: 'ਮੁੱਖ ਹੱਬਾਂ ਰਾਹੀਂ ਕਨੈਕਟਿੰਗ ਵਿਕਲਪ',
+    watchAlertTitle: 'ਕੀਮਤ ਵਾਚ ਅਲਰਟ',
+    watchAlertCta: 'ਕੀਮਤ ਵੇਖੋ',
+    alertChannel: 'ਮੈਨੂੰ ਇੱਥੇ ਸੂਚਿਤ ਕਰੋ',
+    alertChannelRequired: 'ਘੱਟੋ-ਘੱਟ ਇੱਕ ਅਜਿਹਾ ਚੈਨਲ ਚੁਣੋ ਜਿਸ ਤੇ ਅਸੀਂ ਤੁਹਾਡੇ ਤੱਕ ਪਹੁੰਚ ਸਕੀਏ।',
+    alertEmail: 'ਈਮੇਲ',
+    alertWhatsapp: 'ਵਟਸਐਪ',
+    alertSms: 'ਐਸਐਮਐਸ',
+    alertPhoneLabel: 'ਮੋਬਾਈਲ ਨੰਬਰ',
+    alertPhoneNeeded: 'ਵਟਸਐਪ ਅਤੇ ਐਸਐਮਐਸ ਅਲਰਟ ਲਈ ਮੋਬਾਈਲ ਨੰਬਰ ਚਾਹੀਦਾ ਹੈ। ਬਣਾਉਣ ਤੋਂ ਪਹਿਲਾਂ ਇਹ ਦਰਜ ਕਰੋ।',
+    alertPhoneInvalid: 'ਦੇਸ਼ ਕੋਡ ਸਮੇਤ ਸਹੀ ਮੋਬਾਈਲ ਨੰਬਰ ਦਰਜ ਕਰੋ (ਜਿਵੇਂ: +91 98765 43210)।',
+    alertEmailInvalid: 'ਸਹੀ ਈਮੇਲ ਪਤਾ ਦਰਜ ਕਰੋ।',
+    alertTargetPrice: 'ਇਸ ਤੋਂ ਘੱਟ ਹੋਣ ਤੇ ਦੱਸੋ (₹)',
+    alertCreate: 'ਅਲਰਟ ਬਣਾਓ',
+    alertSave: 'ਤਬਦੀਲੀਆਂ ਸੰਭਾਲੋ',
+    alertCancel: 'ਰੱਦ ਕਰੋ',
+    alertCancelled: 'ਅਲਰਟ ਨਹੀਂ ਬਣਾਇਆ — ਡਿਲੀਵਰੀ ਪਤੇ ਤੋਂ ਬਿਨਾਂ ਅਸੀਂ ਤੁਹਾਡੇ ਤੱਕ ਨਹੀਂ ਪਹੁੰਚ ਸਕਦੇ।',
+    alertCreated: 'ਅਲਰਟ ਬਣ ਗਿਆ। ਅਸੀਂ ਇੱਥੇ ਸੂਚਿਤ ਕਰਾਂਗੇ:',
+    alertMockNote: 'ਡੈਮੋ ਬਿਲਡ: ਅਲਰਟ ਇਸੇ ਡਿਵਾਈਸ ਤੇ ਸੰਭਾਲੇ ਜਾਂਦੇ ਹਨ ਅਤੇ ਸੂਚਨਾਵਾਂ ਨਕਲੀ ਹਨ — ਅਸਲ ਸੁਨੇਹਾ ਨਹੀਂ ਭੇਜਿਆ ਜਾਂਦਾ।',
+    myAlerts: 'ਮੇਰੇ ਅਲਰਟ',
+    alertsEmpty: 'ਹਾਲੇ ਕੋਈ ਅਲਰਟ ਨਹੀਂ। ਰੂਟ ਲੱਭੋ ਅਤੇ "ਕੀਮਤ ਵੇਖੋ" ਦਬਾਓ।',
+    alertDelete: 'ਮਿਟਾਓ',
+    alertEdit: 'ਸੋਧੋ',
+    alertDeliverTo: 'ਇੱਥੇ ਭੇਜਿਆ ਜਾਵੇਗਾ',
+    profileTitle: 'ਪ੍ਰੋਫਾਈਲ ਅਤੇ ਸੈਟਿੰਗਾਂ',
+    profileSave: 'ਪ੍ਰੋਫਾਈਲ ਸੰਭਾਲੋ',
+    profileSaved: 'ਪ੍ਰੋਫਾਈਲ ਅੱਪਡੇਟ ਹੋ ਗਈ।',
+    profileAddPhonePrompt: 'ਵਟਸਐਪ ਅਤੇ ਐਸਐਮਐਸ ਅਲਰਟ ਲਈ ਮੋਬਾਈਲ ਨੰਬਰ ਜੋੜੋ। ਇਸ ਤੋਂ ਬਿਨਾਂ ਵੀ ਐਪ ਚੱਲਦੀ ਰਹੇਗੀ।',
+    profileAddEmailPrompt: 'ਈਮੇਲ ਅਲਰਟ ਅਤੇ ਬੁਕਿੰਗ ਰਸੀਦ ਲਈ ਈਮੇਲ ਪਤਾ ਜੋੜੋ।',
+    profileLater: 'ਬਾਅਦ ਵਿੱਚ',
+    loginIdentifier: 'ਈਮੇਲ ਜਾਂ ਮੋਬਾਈਲ ਨੰਬਰ',
+    selectSeatsCta: 'ਸੀਟਾਂ ਚੁਣੋ',
+    bookNow: 'ਹੁਣੇ ਬੁੱਕ ਕਰੋ',
+    aiRecommended: 'AI ਸਿਫ਼ਾਰਸ਼ ਪਹਿਲਾਂ',
+    forecastTitle: 'ਸਮਾਰਟ ਹਫ਼ਤਾਵਾਰੀ ਕੀਮਤ ਭਵਿੱਖਬਾਣੀ',
+    forecastSub: 'ਕਿਰਾਇਆ ਰੁਝਾਨ',
+    maxSavings: 'ਵੱਧ ਤੋਂ ਵੱਧ ਬੱਚਤ',
+    upTo: 'ਤੱਕ',
+    cheapestDay: 'ਸਭ ਤੋਂ ਸਸਤਾ',
+    confidence: 'ਭਰੋਸਾ',
+    notificationsEmpty: 'ਕੋਈ ਨਵੀਂ ਸੂਚਨਾ ਨਹੀਂ।',
     footerRights: 'ਸਾਰੇ ਹੱਕ ਰਾਖਵੇਂ ਹਨ।',
   },
 
@@ -1315,6 +1673,7 @@ const translations: Translations = {
     acStatus: 'AC ପ୍ରକାର',
     busModel: 'ବସ୍ ମଡେଲ୍',
     maxPriceLabel: 'ସର୍ବାଧିକ ଭଡା',
+    minPriceLabel: 'ସର୍ବନିମ୍ନ ଭଡା',
     minRatingLabel: 'ସର୍ବନିମ୍ନ ରେଟିଂ',
     volvo: 'ଭୋଲଭୋ ମଲ୍ଟି-ଆକ୍ସଲ୍',
     bharatbenz: 'ଭାରତବେଞ୍ଜ',
@@ -1359,6 +1718,49 @@ const translations: Translations = {
     pnrNumber: 'PNR ନମ୍ବର',
     downloadTicket: 'ଟିକେଟ୍ ଡାଉନ୍‌ଲୋଡ୍ କରନ୍ତୁ',
 
+    showTheseInstead: 'ଏଗୁଡ଼ିକ ଦେଖାନ୍ତୁ',
+    noDirectTitle: 'ସିଧା ବସ୍ ନାହିଁ — ସଂଯୋଗକାରୀ ଯାତ୍ରା',
+    connectingVia: 'ପ୍ରମୁଖ ହବ୍ ମାଧ୍ୟମରେ ସଂଯୋଗ ବିକଳ୍ପ',
+    watchAlertTitle: 'ମୂଲ୍ୟ ୱାଚ୍ ଆଲର୍ଟ',
+    watchAlertCta: 'ମୂଲ୍ୟ ଦେଖନ୍ତୁ',
+    alertChannel: 'ମୋତେ ଏଠାରେ ଜଣାନ୍ତୁ',
+    alertChannelRequired: 'ଆମେ ଆପଣଙ୍କ ପାଖରେ ପହଞ୍ଚି ପାରିବା ଭଳି ଅନ୍ତତଃ ଗୋଟିଏ ଚ୍ୟାନେଲ ବାଛନ୍ତୁ।',
+    alertEmail: 'ଇମେଲ',
+    alertWhatsapp: 'ହ୍ୱାଟ୍ସଆପ୍',
+    alertSms: 'ଏସଏମଏସ',
+    alertPhoneLabel: 'ମୋବାଇଲ ନମ୍ବର',
+    alertPhoneNeeded: 'ହ୍ୱାଟ୍ସଆପ୍ ଏବଂ ଏସଏମଏସ ଆଲର୍ଟ ପାଇଁ ମୋବାଇଲ ନମ୍ବର ଦରକାର। ତିଆରି କରିବା ପୂର୍ବରୁ ଏହା ଦିଅନ୍ତୁ।',
+    alertPhoneInvalid: 'ଦେଶ କୋଡ୍ ସହିତ ବୈଧ ମୋବାଇଲ ନମ୍ବର ଦିଅନ୍ତୁ (ଯଥା: +91 98765 43210)।',
+    alertEmailInvalid: 'ବୈଧ ଇମେଲ ଠିକଣା ଦିଅନ୍ତୁ।',
+    alertTargetPrice: 'ଏଥିରୁ କମ୍ ହେଲେ ଜଣାନ୍ତୁ (₹)',
+    alertCreate: 'ଆଲର୍ଟ ତିଆରି କରନ୍ତୁ',
+    alertSave: 'ପରିବର୍ତ୍ତନ ସେଭ୍ କରନ୍ତୁ',
+    alertCancel: 'ବାତିଲ୍ କରନ୍ତୁ',
+    alertCancelled: 'ଆଲର୍ଟ ତିଆରି ହେଲା ନାହିଁ — ଡେଲିଭରି ଠିକଣା ବିନା ଆମେ ଆପଣଙ୍କ ପାଖରେ ପହଞ୍ଚି ପାରିବୁ ନାହିଁ।',
+    alertCreated: 'ଆଲର୍ଟ ତିଆରି ହେଲା। ଆମେ ଏଠାରେ ଜଣାଇବୁ:',
+    alertMockNote: 'ଡେମୋ ବିଲ୍ଡ: ଆଲର୍ଟ ଏହି ଡିଭାଇସରେ ରଖାଯାଏ ଏବଂ ବିଜ୍ଞପ୍ତି ଅନୁକରଣ ମାତ୍ର — ପ୍ରକୃତ ସନ୍ଦେଶ ପଠାଯାଏ ନାହିଁ।',
+    myAlerts: 'ମୋର ଆଲର୍ଟ',
+    alertsEmpty: 'ଏପର୍ଯ୍ୟନ୍ତ ଆଲର୍ଟ ନାହିଁ। ମାର୍ଗ ଖୋଜି "ମୂଲ୍ୟ ଦେଖନ୍ତୁ" ଦବାନ୍ତୁ।',
+    alertDelete: 'ବିଲୋପ କରନ୍ତୁ',
+    alertEdit: 'ସମ୍ପାଦନା କରନ୍ତୁ',
+    alertDeliverTo: 'ଏଠାକୁ ପଠାଯିବ',
+    profileTitle: 'ପ୍ରୋଫାଇଲ୍ ଓ ସେଟିଂସ୍',
+    profileSave: 'ପ୍ରୋଫାଇଲ୍ ସେଭ୍ କରନ୍ତୁ',
+    profileSaved: 'ପ୍ରୋଫାଇଲ୍ ଅପଡେଟ୍ ହେଲା।',
+    profileAddPhonePrompt: 'ହ୍ୱାଟ୍ସଆପ୍ ଓ ଏସଏମଏସ ଆଲର୍ଟ ପାଇଁ ମୋବାଇଲ ନମ୍ବର ଯୋଡ଼ନ୍ତୁ। ଏହା ବିନା ମଧ୍ୟ ଆପ୍ ଚାଲିବ।',
+    profileAddEmailPrompt: 'ଇମେଲ ଆଲର୍ଟ ଓ ବୁକିଂ ରସିଦ ପାଇଁ ଇମେଲ ଠିକଣା ଯୋଡ଼ନ୍ତୁ।',
+    profileLater: 'ପରେ',
+    loginIdentifier: 'ଇମେଲ କିମ୍ବା ମୋବାଇଲ ନମ୍ବର',
+    selectSeatsCta: 'ସିଟ୍ ବାଛନ୍ତୁ',
+    bookNow: 'ବର୍ତ୍ତମାନ ବୁକ୍ କରନ୍ତୁ',
+    aiRecommended: 'AI ସୁପାରିଶ ପ୍ରଥମେ',
+    forecastTitle: 'ସ୍ମାର୍ଟ ସାପ୍ତାହିକ ମୂଲ୍ୟ ପୂର୍ବାନୁମାନ',
+    forecastSub: 'ଭଡା ପ୍ରବୃତ୍ତି',
+    maxSavings: 'ସର୍ବାଧିକ ସଞ୍ଚୟ',
+    upTo: 'ପର୍ଯ୍ୟନ୍ତ',
+    cheapestDay: 'ସବୁଠାରୁ ଶସ୍ତା',
+    confidence: 'ଆତ୍ମବିଶ୍ୱାସ',
+    notificationsEmpty: 'ନୂଆ ବିଜ୍ଞପ୍ତି ନାହିଁ।',
     footerRights: 'ସମସ୍ତ ଅଧିକାର ସୁରକ୍ଷିତ।',
   },
 };
@@ -1372,18 +1774,70 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+const LANGUAGE_STORAGE_KEY = 'yatra_saathi_language';
+
+/**
+ * ISSUE 0(e): every key that had to fall back to English is recorded here instead of
+ * silently degrading, so the debug panel / i18n audit can report the gap.
+ */
+const missingKeys = new Set<string>();
+
+export function getMissingTranslationKeys(): string[] {
+  return [...missingKeys].sort();
+}
+
+/** All translation keys that exist in English but are absent from another language. */
+export function auditTranslationTable(): string[] {
+  const gaps: string[] = [];
+  const enKeys = Object.keys(translations.en);
+  for (const { code } of SUPPORTED_LANGUAGES) {
+    const dict = translations[code];
+    if (!dict) {
+      gaps.push(`translations.${code} (entire language missing)`);
+      continue;
+    }
+    for (const key of enKeys) {
+      if (!dict[key]) gaps.push(`translations.${code}.${key}`);
+    }
+  }
+  return gaps;
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [currentLanguage, setCurrentLanguageState] = useState<string>('en');
+  const [currentLanguage, setCurrentLanguageState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      return saved && isSupportedLanguage(saved) ? saved : 'en';
+    } catch {
+      return 'en';
+    }
+  });
+
+  // Persist the choice so a reload or a hard navigation does not silently drop the
+  // user back into English mid-journey.
+  useEffect(() => {
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, currentLanguage);
+    } catch {
+      /* localStorage unavailable (private mode) */
+    }
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = currentLanguage;
+      document.documentElement.dir = currentLanguage === 'ur' ? 'rtl' : 'ltr';
+    }
+  }, [currentLanguage]);
 
   const setLanguage = (code: string) => {
-    if (SUPPORTED_LANGUAGES.some((l) => l.code === code)) {
+    if (isSupportedLanguage(code)) {
       setCurrentLanguageState(code);
     }
   };
 
   const t = (key: string): string => {
     const langDict = translations[currentLanguage] || translations.en;
-    return langDict[key] || translations.en[key] || key;
+    if (langDict[key]) return langDict[key];
+    if (currentLanguage !== 'en') missingKeys.add(`${currentLanguage}.${key}`);
+    return translations.en[key] || key;
   };
 
   const getCityName = (city: string): string => {

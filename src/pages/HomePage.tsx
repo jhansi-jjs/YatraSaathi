@@ -83,7 +83,9 @@ export default function HomePage() {
           {POPULAR_ROUTES.map((route, i) => (
             <Link
               key={i}
-              to={`/search?origin=${route.from}&destination=${route.to}&date=${new Date().toISOString().split('T')[0]}`}
+              // ISSUE 5: these pointed at /search, which ignores query params, so the
+              // "popular route" cards silently did nothing. They now run the search.
+              to={`/results?origin=${encodeURIComponent(route.from)}&destination=${encodeURIComponent(route.to)}&date=${new Date(Date.now() + 86400000).toISOString().split('T')[0]}`}
               className="group card animate-fade-in-up overflow-hidden p-0 transition-all hover:shadow-lg"
               style={{ animationDelay: `${i * 80}ms` }}
             >
