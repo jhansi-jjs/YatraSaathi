@@ -12,6 +12,12 @@ services:
         sync: false
       - key: WHISPER_DEVICE
         value: cpu
+      # "tiny" mis-transcribed Indian city names ("Vizag" -> "Vijayak",
+      # "Hyderabad" -> "Hedraabad"). "base" is markedly better on Indian
+      # languages for ~2x the memory. If the free tier (512 MB) OOMs on boot,
+      # set this back to "tiny".
+      - key: WHISPER_MODEL_SIZE
+        value: base
 
   - type: web
     name: yatrasaathi-frontend
