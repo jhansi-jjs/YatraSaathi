@@ -301,6 +301,16 @@ function startsWithPostposition(rest: string, posts: string[]): boolean {
   return false;
 }
 
+// Ordinary words that must never be fuzzy-matched to a city name. Without this the
+// Levenshtein fallback turns "from" into Mumbai and "bus" into Pune.
+const FUZZY_STOPWORDS = new Set([
+  'from', 'to', 'the', 'and', 'for', 'with', 'that', 'this', 'want', 'need', 'please',
+  'bus', 'buses', 'bus-ticket', 'ticket', 'tickets', 'book', 'booking', 'show',
+  'showing', 'going', 'travel', 'trip', 'seat', 'seats', 'today', 'tomorrow', 'night',
+  'morning', 'evening', 'cheap', 'cheapest', 'best', 'find', 'search', 'give', 'take',
+  'leaving', 'departure', 'arrival', 'available', 'between', 'under', 'above', 'about',
+]);
+
 interface CityMatch {
   city: string;
   index: number;
@@ -416,11 +426,16 @@ export function extractCitiesFromInput(text: string): CityExtraction {
   let lowConfCity: string | undefined = undefined;
   if (matches.length < 2) {
     for (const { tk, at } of tokens) {
-      if (tk.length < 3) continue;
+      // Skip filler words outright: fuzzy-matching them produced nonsense
+      // suggestions (the word "from" is 2 edits from the alias "bom" -> Mumbai).
+      if (tk.length < 4 || FUZZY_STOPWORDS.has(tk)) continue;
       let bestCity: string | null = null;
       let bestDist = Infinity;
       let bestLen = 0;
       for (const [alias, canonical] of NORM_ALIAS_ENTRIES) {
+        // Short codes (blr, hyd, vja, bom …) must match EXACTLY — they are far too
+        // close to ordinary words to be fuzzy-matched safely.
+        if (alias.length < 5) continue;
         if (Math.abs(alias.length - tk.length) > 2) continue;
         const d = levenshteinDistance(tk, alias);
         if (d < bestDist) {
